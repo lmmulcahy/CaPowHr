@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		19B1A0C82E78FB0D003B71A0 /* CaPowHr Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 19B1A0C72E78FB0D003B71A0 /* CaPowHr Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		19B1A0F72E78FB0E003B71A0 /* HealthKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 19B1A0F92E78FB0E003B71A0 /* HealthKit.framework */; };
+		19B1A0F82E78FB0E003B71A0 /* CoreBluetooth.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 19B1A0FA2E78FB0E003B71A0 /* CoreBluetooth.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -53,6 +55,8 @@
 		19B1A0C72E78FB0D003B71A0 /* CaPowHr Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "CaPowHr Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		19B1A0D62E78FB0E003B71A0 /* CaPowHr Watch AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "CaPowHr Watch AppTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		19B1A0E02E78FB0E003B71A0 /* CaPowHr Watch AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "CaPowHr Watch AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		19B1A0F92E78FB0E003B71A0 /* HealthKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = HealthKit.framework; path = System/Library/Frameworks/HealthKit.framework; sourceTree = SDKROOT; };
+		19B1A0FA2E78FB0E003B71A0 /* CoreBluetooth.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreBluetooth.framework; path = System/Library/Frameworks/CoreBluetooth.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -78,6 +82,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				19B1A0F72E78FB0E003B71A0 /* HealthKit.framework in Frameworks */,
+				19B1A0F82E78FB0E003B71A0 /* CoreBluetooth.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -470,6 +476,13 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
 				WATCHOS_DEPLOYMENT_TARGET = 11.5;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-framework",
+					HealthKit,
+					"-framework",
+					CoreBluetooth,
+				);
 			};
 			name = Debug;
 		};
@@ -499,6 +512,13 @@
 				TARGETED_DEVICE_FAMILY = 4;
 				VALIDATE_PRODUCT = YES;
 				WATCHOS_DEPLOYMENT_TARGET = 11.5;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-framework",
+					HealthKit,
+					"-framework",
+					CoreBluetooth,
+				);
 			};
 			name = Release;
 		};
