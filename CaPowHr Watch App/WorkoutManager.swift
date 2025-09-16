@@ -43,7 +43,7 @@ class WorkoutManager: NSObject, ObservableObject {
     private let cscMeasurementCharacteristicUUID = CBUUID(string: "2A5B")
     
     // MARK: - Cadence Calculation
-    private var lastCrankRevolutionTime: UInt32 = 0
+    private var lastCrankRevolutionTime: UInt16 = 0
     private var lastCrankRevolutionCount: UInt16 = 0
     
     override init() {
@@ -91,14 +91,11 @@ class WorkoutManager: NSObject, ObservableObject {
             workoutSession = try HKWorkoutSession(healthStore: healthStore, configuration: configuration)
             workoutBuilder = workoutSession?.associatedWorkoutBuilder()
             
-            workoutBuilder?.dataSource = HKLiveWorkoutDataSource(healthStore: healthStore, workoutConfiguration: configuration)
-            
             workoutSession?.delegate = self
-            workoutBuilder?.delegate = self
             
             workoutStartTime = Date()
             workoutSession?.startActivity(with: Date())
-            workoutBuilder?.beginCollection(at: Date()) { [weak self] success, error in
+            workoutBuilder?.beginCollection(withStart: Date()) { [weak self] success, error in
                 if let error = error {
                     print("Error beginning workout collection: \(error.localizedDescription)")
                 } else {
@@ -119,7 +116,7 @@ class WorkoutManager: NSObject, ObservableObject {
         guard isWorkoutActive else { return }
         
         workoutSession?.end()
-        workoutBuilder?.endCollection(at: Date()) { [weak self] success, error in
+        workoutBuilder?.endCollection(withEnd: Date()) { [weak self] success, error in
             if let error = error {
                 print("Error ending workout collection: \(error.localizedDescription)")
             } else {
@@ -285,7 +282,7 @@ class WorkoutManager: NSObject, ObservableObject {
         let powerQuantity = HKQuantity(unit: HKUnit.watt(), doubleValue: power)
         let powerSample = HKQuantitySample(type: powerType, quantity: powerQuantity, start: Date(), end: Date())
         
-        workoutBuilder?.add(powerSample) { success, error in
+        workoutBuilder?.add([powerSample]) { success, error in
             if let error = error {
                 print("Error adding power sample: \(error.localizedDescription)")
             }
@@ -298,7 +295,7 @@ class WorkoutManager: NSObject, ObservableObject {
         let cadenceQuantity = HKQuantity(unit: HKUnit(from: "rev/min"), doubleValue: cadence)
         let cadenceSample = HKQuantitySample(type: cadenceType, quantity: cadenceQuantity, start: Date(), end: Date())
         
-        workoutBuilder?.add(cadenceSample) { success, error in
+        workoutBuilder?.add([cadenceSample]) { success, error in
             if let error = error {
                 print("Error adding cadence sample: \(error.localizedDescription)")
             }
@@ -317,16 +314,6 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
     }
 }
 
-// MARK: - HKLiveWorkoutBuilderDelegate
-extension WorkoutManager: HKLiveWorkoutBuilderDelegate {
-    func workoutBuilder(_ workoutBuilder: HKLiveWorkoutBuilder, didCollectDataOf collectedTypes: Set<HKSampleType>) {
-        // Handle collected data
-    }
-    
-    func workoutBuilderDidCollectEvent(_ workoutBuilder: HKLiveWorkoutBuilder) {
-        // Handle workout events
-    }
-}
 
 // MARK: - CBCentralManagerDelegate
 extension WorkoutManager: CBCentralManagerDelegate {

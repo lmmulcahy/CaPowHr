@@ -164,7 +164,7 @@ struct DataCard: View {
         }
         .padding(.vertical, 4)
         .padding(.horizontal, 6)
-        .background(Color(.systemGray6))
+        .background(Color.gray.opacity(0.2))
         .cornerRadius(6)
     }
 }
