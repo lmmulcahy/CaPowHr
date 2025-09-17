@@ -75,6 +75,42 @@ struct WorkoutView: View {
     private var distanceUnit: String { "mi" }
 }
 
+struct DataCard: View {
+    let title: String
+    let value: String
+    let unit: String
+    let icon: String
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 2) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.footnote)
+                    .foregroundColor(color)
+                Text(title)
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+            
+            HStack(spacing: 4) {
+                Text(value)
+                    .font(.title3)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+                Text(unit)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .baselineOffset(2)
+            }
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 6)
+        .background(Color.gray.opacity(0.2))
+        .cornerRadius(6)
+    }
+}
+
 #if DEBUG
 #Preview("Workout View") {
     let wm = WorkoutManager()
