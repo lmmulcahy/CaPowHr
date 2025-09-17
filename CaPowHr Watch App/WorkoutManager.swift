@@ -260,10 +260,15 @@ class WorkoutManager: NSObject, ObservableObject {
     
     // MARK: - Data Parsing
     private func parsePowerData(_ data: Data) {
-        guard data.count >= 2 else { return }
+        guard data.count >= 2 else { 
+            print("Power data too short: \(data.count) bytes")
+            return 
+        }
         
         let powerBytes = data.subdata(in: 0..<2)
         let power = powerBytes.withUnsafeBytes { $0.load(as: UInt16.self) }
+        
+        print("Parsed power: \(power) watts")
         
         DispatchQueue.main.async {
             self.cyclingPower = Double(power)
@@ -274,11 +279,16 @@ class WorkoutManager: NSObject, ObservableObject {
     }
     
     private func parseCadenceData(_ data: Data) {
-        guard data.count >= 6 else { return }
+        guard data.count >= 6 else { 
+            print("Cadence data too short: \(data.count) bytes")
+            return 
+        }
         
         let _ = data[0] // flags - not used in this implementation
         let crankRevolutionCount = data.subdata(in: 1..<3).withUnsafeBytes { $0.load(as: UInt16.self) }
         let lastCrankRevolutionTime = data.subdata(in: 3..<5).withUnsafeBytes { $0.load(as: UInt16.self) }
+        
+        print("Cadence data - Count: \(crankRevolutionCount), Time: \(lastCrankRevolutionTime)")
         
         // Calculate RPM
         if self.lastCrankRevolutionCount != 0 {
@@ -287,6 +297,8 @@ class WorkoutManager: NSObject, ObservableObject {
             
             if timeDelta > 0 {
                 let rpm = Double(revolutionDelta) * 1024.0 / Double(timeDelta) * 60.0
+                
+                print("Calculated cadence: \(rpm) RPM")
                 
                 DispatchQueue.main.async {
                     self.cyclingCadence = rpm
@@ -302,15 +314,22 @@ class WorkoutManager: NSObject, ObservableObject {
     }
     
     private func parseFTMSData(_ data: Data) {
-        guard data.count >= 2 else { return }
+        guard data.count >= 2 else { 
+            print("FTMS data too short: \(data.count) bytes")
+            return 
+        }
         
         let flags = data[0]
         var offset = 1
+        
+        print("FTMS flags: \(String(format: "%02X", flags))")
         
         // Check if instantaneous power is present (bit 0)
         if (flags & 0x01) != 0 && data.count >= offset + 2 {
             let power = data.subdata(in: offset..<offset + 2).withUnsafeBytes { $0.load(as: UInt16.self) }
             offset += 2
+            
+            print("FTMS power: \(power) watts")
             
             DispatchQueue.main.async {
                 self.cyclingPower = Double(power)
@@ -324,6 +343,8 @@ class WorkoutManager: NSObject, ObservableObject {
         if (flags & 0x02) != 0 && data.count >= offset + 1 {
             let cadence = data[offset]
             offset += 1
+            
+            print("FTMS cadence: \(cadence) RPM")
             
             DispatchQueue.main.async {
                 self.cyclingCadence = Double(cadence)
@@ -371,7 +392,7 @@ class WorkoutManager: NSObject, ObservableObject {
     private func addCadenceSample(_ cadence: Double) {
         guard let cadenceType = HKQuantityType.quantityType(forIdentifier: .cyclingCadence) else { return }
         
-        let cadenceQuantity = HKQuantity(unit: HKUnit(from: "rev/min"), doubleValue: cadence)
+        let cadenceQuantity = HKQuantity(unit: HKUnit.count().unitDivided(by: HKUnit.minute()), doubleValue: cadence)
         let cadenceSample = HKQuantitySample(type: cadenceType, quantity: cadenceQuantity, start: Date(), end: Date())
         
         workoutBuilder?.add([cadenceSample]) { success, error in
@@ -490,14 +511,26 @@ extension WorkoutManager: CBPeripheralDelegate {
     }
     
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-        guard let data = characteristic.value else { return }
+        guard let data = characteristic.value else { 
+            print("No data received from characteristic: \(characteristic.uuid)")
+            return 
+        }
+        
+        print("Received data from characteristic: \(characteristic.uuid)")
+        print("Data length: \(data.count) bytes")
+        print("Data: \(data.map { String(format: "%02X", $0) }.joined(separator: " "))")
         
         if characteristic.uuid == powerMeasurementCharacteristicUUID {
+            print("Parsing as cycling power data")
             parsePowerData(data)
         } else if characteristic.uuid == cscMeasurementCharacteristicUUID {
+            print("Parsing as cycling cadence data")
             parseCadenceData(data)
         } else if characteristic.uuid == ftmsDataCharacteristicUUID {
+            print("Parsing as FTMS data")
             parseFTMSData(data)
+        } else {
+            print("Unknown characteristic UUID: \(characteristic.uuid)")
         }
     }
     
@@ -506,6 +539,8 @@ extension WorkoutManager: CBPeripheralDelegate {
             print("Error updating notification state: \(error.localizedDescription)")
         } else {
             print("Notification state updated for characteristic: \(characteristic.uuid)")
+            print("Characteristic properties: \(characteristic.properties.rawValue)")
+            print("Characteristic isNotifying: \(characteristic.isNotifying)")
         }
     }
 }
