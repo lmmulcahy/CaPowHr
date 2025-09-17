@@ -172,9 +172,10 @@ var formattedHeartRate: String {
 
 ### High Priority 🔴
 1. **Fix memory leak in timer management** (lines 241-254)
-2. **Add proper error handling** throughout `WorkoutManager`
-3. **Fix concurrent access issues** in Bluetooth delegates
-4. **Validate data parsing** edge cases
+2. **Add missing HealthKit data storage** (distance, calories) - major functionality gap
+3. **Add proper error handling** throughout `WorkoutManager`
+4. **Fix concurrent access issues** in Bluetooth delegates
+5. **Validate data parsing** edge cases
 
 ### Medium Priority 🟡
 1. **Extract Bluetooth logic** to separate manager class
@@ -211,6 +212,47 @@ protocol SensorDataProvider {
 ### 3. State Machine
 Implement formal state machine for workout lifecycle:
 - Idle → Scanning → Connected → Active → Stopping → Complete
+
+## HealthKit Data Storage Issues 📊
+
+### Missing HealthKit Data Storage
+Currently collecting but **NOT storing** to HealthKit:
+
+#### 1. Distance Data ❌
+- **Issue**: `distanceMeters` collected from FTMS data (line 462) but no `addDistanceSample()` method
+- **Missing Permission**: `.distanceCycling` not in `typesToWrite` (line 73-79)
+- **Fix**: Add distance storage method and permission
+
+#### 2. Active Energy Burned ❌  
+- **Issue**: Permission requested (line 78) but no calculation or storage implemented
+- **Fix**: Calculate calories from power/duration and store to HealthKit
+
+#### 3. Speed Data (Optional) ⚠️
+- **Issue**: Could derive speed from distance/time but not implemented
+- **Fix**: Add `.speed` permission and calculation method
+
+### Required Code Changes
+```swift
+// Add to typesToWrite permissions:
+HKObjectType.quantityType(forIdentifier: .distanceCycling)!,
+HKObjectType.quantityType(forIdentifier: .speed)!,
+
+// Add new storage methods:
+private func addDistanceSample(_ distance: Double)
+private func addEnergyBurnedSample(_ calories: Double)  
+private func addSpeedSample(_ speed: Double)
+```
+
+### HealthKit Data Completeness Summary
+| Metric | Collected | Stored to HealthKit | Status |
+|--------|-----------|-------------------|--------|
+| Heart Rate | ✅ | ✅ (automatic) | Complete |
+| Power | ✅ | ✅ | Complete |
+| Cadence | ✅ | ✅ | Complete |
+| Duration | ✅ | ✅ (workout session) | Complete |
+| Distance | ✅ | ❌ | **Missing** |
+| Calories | ❌ | ❌ | **Missing** |
+| Speed | ❌ | ❌ | Optional |
 
 ## Long-term Improvements 🚀
 
