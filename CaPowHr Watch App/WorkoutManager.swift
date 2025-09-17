@@ -70,7 +70,7 @@ class WorkoutManager: NSObject, ObservableObject {
             HKObjectType.quantityType(forIdentifier: .activeEnergyBurned)!
         ]
         
-        healthStore.requestAuthorization(toShare: typesToWrite, read: typesToRead) { [weak self] success, error in
+        healthStore.requestAuthorization(toShare: typesToWrite, read: typesToRead) { success, error in
             if let error = error {
                 print("HealthKit authorization error: \(error.localizedDescription)")
             } else if success {
@@ -116,11 +116,11 @@ class WorkoutManager: NSObject, ObservableObject {
         guard isWorkoutActive else { return }
         
         workoutSession?.end()
-        workoutBuilder?.endCollection(withEnd: Date()) { [weak self] success, error in
+        workoutBuilder?.endCollection(withEnd: Date()) { success, error in
             if let error = error {
                 print("Error ending workout collection: \(error.localizedDescription)")
             } else {
-                self?.finishWorkout()
+                self.finishWorkout()
             }
         }
     }
@@ -250,7 +250,7 @@ class WorkoutManager: NSObject, ObservableObject {
     private func parseCadenceData(_ data: Data) {
         guard data.count >= 6 else { return }
         
-        let flags = data[0]
+        let _ = data[0] // flags - not used in this implementation
         let crankRevolutionCount = data.subdata(in: 1..<3).withUnsafeBytes { $0.load(as: UInt16.self) }
         let lastCrankRevolutionTime = data.subdata(in: 3..<5).withUnsafeBytes { $0.load(as: UInt16.self) }
         
