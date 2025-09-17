@@ -4,25 +4,15 @@ struct WorkoutView: View {
     @ObservedObject var workoutManager: WorkoutManager
     
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 2) {
             Text(formatDuration(workoutManager.workoutDuration))
                 .font(.title2)
                 .fontWeight(.semibold)
                 .foregroundColor(.primary)
             
-            if workoutManager.connectedDevices.isEmpty {
-                Text("Connecting sensors…")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            } else {
-                Text("\(workoutManager.connectedDevices.count) sensor(s) connected")
-                    .font(.caption)
-                    .foregroundColor(.green)
-            }
-            
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 8) {
                 DataCard(
-                    title: "Heart Rate",
+                    title: "HR",
                     value: "\(Int(workoutManager.heartRate))",
                     unit: "BPM",
                     icon: "heart.fill",
@@ -45,7 +35,7 @@ struct WorkoutView: View {
                 DataCard(
                     title: "Devices",
                     value: "\(workoutManager.connectedDevices.count)",
-                    unit: "Connected",
+                    unit: "",
                     icon: "antenna.radiowaves.left.and.right",
                     color: .green
                 )
@@ -60,7 +50,7 @@ struct WorkoutView: View {
                     .font(.headline)
                     .fontWeight(.bold)
                     .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: 150)
                     .padding(.vertical, 10)
                     .background(Color.red)
                     .cornerRadius(8)

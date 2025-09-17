@@ -38,7 +38,7 @@ struct StartView: View {
                     .font(.headline)
                     .fontWeight(.bold)
                     .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: 150)
                     .padding(.vertical, 10)
                     .background(Color.green)
                     .cornerRadius(8)

@@ -53,14 +53,16 @@ struct DataCard: View {
                     .foregroundColor(.secondary)
             }
             
-            Text(value)
-                .font(.title3)
-                .fontWeight(.bold)
-                .foregroundColor(.primary)
-            
-            Text(unit)
-                .font(.caption2)
-                .foregroundColor(.secondary)
+            HStack(spacing: 4) {
+                Text(value)
+                    .font(.title3)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+                Text(unit)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .baselineOffset(2)
+            }
         }
         .padding(.vertical, 4)
         .padding(.horizontal, 6)
