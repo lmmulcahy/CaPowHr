@@ -17,6 +17,7 @@ class WorkoutManager: NSObject, ObservableObject {
     @Published var cyclingCadence: Double = 0
     @Published var workoutDuration: TimeInterval = 0
     @Published var isWorkoutActive: Bool = false
+    @Published var isAwaitingSave: Bool = false
     @Published var isScanning: Bool = false
     @Published var connectedDevices: [String] = []
     
@@ -126,7 +127,14 @@ class WorkoutManager: NSObject, ObservableObject {
             if let error = error {
                 print("Error ending workout collection: \(error.localizedDescription)")
             } else {
-                self.finishWorkout()
+                // Transition to post-workout confirmation UI
+                DispatchQueue.main.async {
+                    self.isAwaitingSave = true
+                    self.isWorkoutActive = false
+                    self.stopWorkoutTimer()
+                    self.stopHeartRateQuery()
+                    self.stopScanning()
+                }
             }
         }
     }
@@ -141,10 +149,37 @@ class WorkoutManager: NSObject, ObservableObject {
             
             DispatchQueue.main.async {
                 self?.isWorkoutActive = false
+                self?.isAwaitingSave = false
                 self?.stopWorkoutTimer()
                 self?.stopHeartRateQuery()
                 self?.disconnectAllPeripherals()
+                self?.workoutBuilder = nil
+                self?.workoutSession = nil
             }
+        }
+    }
+
+    // MARK: - Post-workout actions
+    func confirmSaveWorkout() {
+        finishWorkout()
+    }
+    
+    func discardCurrentWorkout() {
+        workoutBuilder?.discardWorkout()
+        print("Workout discarded")
+        DispatchQueue.main.async {
+            self.isAwaitingSave = false
+            self.isWorkoutActive = false
+            self.stopWorkoutTimer()
+            self.stopHeartRateQuery()
+            self.disconnectAllPeripherals()
+            self.workoutBuilder = nil
+            self.workoutSession = nil
+            // Reset metrics
+            self.heartRate = 0
+            self.cyclingPower = 0
+            self.cyclingCadence = 0
+            self.workoutDuration = 0
         }
     }
     

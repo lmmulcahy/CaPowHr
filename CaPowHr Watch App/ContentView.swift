@@ -13,7 +13,9 @@ struct ContentView: View {
     var body: some View {
         VStack(spacing: 8) {
             // Body Content
-            if workoutManager.isWorkoutActive {
+            if workoutManager.isAwaitingSave {
+                SaveDiscardView(workoutManager: workoutManager)
+            } else if workoutManager.isWorkoutActive {
                 WorkoutView(workoutManager: workoutManager)
             } else {
                 StartView(workoutManager: workoutManager)
