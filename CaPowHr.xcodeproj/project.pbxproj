@@ -477,7 +477,6 @@
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "CaPowHr needs to write workout data to Apple Health to track your cycling performance and fitness progress.";
 				INFOPLIST_KEY_UIBackgroundModes = "workout-processing";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
-				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = "com.MulcahyHeavyIndustries.CaPowHr";
 				INFOPLIST_KEY_WKWatchOnly = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -518,7 +517,6 @@
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "CaPowHr needs to write workout data to Apple Health to track your cycling performance and fitness progress.";
 				INFOPLIST_KEY_UIBackgroundModes = "workout-processing";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
-				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = "com.MulcahyHeavyIndustries.CaPowHr";
 				INFOPLIST_KEY_WKWatchOnly = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
