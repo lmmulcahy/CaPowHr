@@ -37,10 +37,16 @@ class WorkoutManager: NSObject, ObservableObject {
     private var workoutStartTime: Date?
     
     // MARK: - Bluetooth Service and Characteristic UUIDs
+    // Standard Cycling Services
     private let cyclingPowerServiceUUID = CBUUID(string: "1818")
     private let cyclingSpeedCadenceServiceUUID = CBUUID(string: "1816")
     private let powerMeasurementCharacteristicUUID = CBUUID(string: "2A63")
     private let cscMeasurementCharacteristicUUID = CBUUID(string: "2A5B")
+    
+    // FTMS (Fitness Machine Service)
+    private let ftmsServiceUUID = CBUUID(string: "1826")
+    private let ftmsDataCharacteristicUUID = CBUUID(string: "2AD2")
+    private let ftmsControlPointCharacteristicUUID = CBUUID(string: "2AD9")
     
     // MARK: - Cadence Calculation
     private var lastCrankRevolutionTime: UInt16 = 0
@@ -216,7 +222,8 @@ class WorkoutManager: NSObject, ObservableObject {
         guard centralManager.state == .poweredOn else { return }
         
         isScanning = true
-        centralManager.scanForPeripherals(withServices: [cyclingPowerServiceUUID, cyclingSpeedCadenceServiceUUID], options: nil)
+        // Scan for both standard cycling services and FTMS
+        centralManager.scanForPeripherals(withServices: [cyclingPowerServiceUUID, cyclingSpeedCadenceServiceUUID, ftmsServiceUUID], options: nil)
     }
     
     private func stopScanning() {
@@ -273,6 +280,59 @@ class WorkoutManager: NSObject, ObservableObject {
         
         self.lastCrankRevolutionCount = crankRevolutionCount
         self.lastCrankRevolutionTime = lastCrankRevolutionTime
+    }
+    
+    private func parseFTMSData(_ data: Data) {
+        guard data.count >= 2 else { return }
+        
+        let flags = data[0]
+        var offset = 1
+        
+        // Check if instantaneous power is present (bit 0)
+        if (flags & 0x01) != 0 && data.count >= offset + 2 {
+            let power = data.subdata(in: offset..<offset + 2).withUnsafeBytes { $0.load(as: UInt16.self) }
+            offset += 2
+            
+            DispatchQueue.main.async {
+                self.cyclingPower = Double(power)
+            }
+            
+            // Add to HealthKit
+            addPowerSample(Double(power))
+        }
+        
+        // Check if instantaneous cadence is present (bit 1)
+        if (flags & 0x02) != 0 && data.count >= offset + 1 {
+            let cadence = data[offset]
+            offset += 1
+            
+            DispatchQueue.main.async {
+                self.cyclingCadence = Double(cadence)
+            }
+            
+            // Add to HealthKit
+            addCadenceSample(Double(cadence))
+        }
+        
+        // Check if accumulated power is present (bit 2)
+        if (flags & 0x04) != 0 && data.count >= offset + 2 {
+            let _ = data.subdata(in: offset..<offset + 2).withUnsafeBytes { $0.load(as: UInt16.self) }
+            offset += 2
+            // Accumulated power not used in this implementation
+        }
+        
+        // Check if heart rate is present (bit 3)
+        if (flags & 0x08) != 0 && data.count >= offset + 1 {
+            let heartRate = data[offset]
+            offset += 1
+            
+            DispatchQueue.main.async {
+                self.heartRate = Double(heartRate)
+            }
+        }
+        
+        // Additional FTMS fields can be parsed here as needed
+        // (speed, distance, time, etc.)
     }
     
     // MARK: - HealthKit Sample Addition
@@ -353,7 +413,7 @@ extension WorkoutManager: CBCentralManagerDelegate {
         }
         
         peripheral.delegate = self
-        peripheral.discoverServices([cyclingPowerServiceUUID, cyclingSpeedCadenceServiceUUID])
+        peripheral.discoverServices([cyclingPowerServiceUUID, cyclingSpeedCadenceServiceUUID, ftmsServiceUUID])
     }
     
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
@@ -390,10 +450,18 @@ extension WorkoutManager: CBPeripheralDelegate {
         for characteristic in characteristics {
             print("Discovered characteristic: \(characteristic.uuid)")
             
+            // Standard cycling services
             if characteristic.uuid == powerMeasurementCharacteristicUUID {
                 powerCharacteristic = characteristic
                 peripheral.setNotifyValue(true, for: characteristic)
             } else if characteristic.uuid == cscMeasurementCharacteristicUUID {
+                cadenceCharacteristic = characteristic
+                peripheral.setNotifyValue(true, for: characteristic)
+            }
+            // FTMS service
+            else if characteristic.uuid == ftmsDataCharacteristicUUID {
+                // FTMS data characteristic can provide both power and cadence
+                powerCharacteristic = characteristic
                 cadenceCharacteristic = characteristic
                 peripheral.setNotifyValue(true, for: characteristic)
             }
@@ -407,6 +475,8 @@ extension WorkoutManager: CBPeripheralDelegate {
             parsePowerData(data)
         } else if characteristic.uuid == cscMeasurementCharacteristicUUID {
             parseCadenceData(data)
+        } else if characteristic.uuid == ftmsDataCharacteristicUUID {
+            parseFTMSData(data)
         }
     }
     
