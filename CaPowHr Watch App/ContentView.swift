@@ -59,6 +59,9 @@ struct ContentView: View {
                             icon: "speedometer",
                             color: .blue
                         )
+                        .onAppear {
+                            print("UI: Cadence value is \(workoutManager.cyclingCadence)")
+                        }
                         
                         // Connected Devices
                         DataCard(

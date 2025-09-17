@@ -279,100 +279,175 @@ class WorkoutManager: NSObject, ObservableObject {
     }
     
     private func parseCadenceData(_ data: Data) {
-        guard data.count >= 6 else { 
+        // Cycling Speed and Cadence (CSC) Measurement (0x2A5B)
+        // Flags (1 byte):
+        // bit 0: Wheel Revolution Data Present
+        // bit 1: Crank Revolution Data Present
+        guard data.count >= 1 else {
             print("Cadence data too short: \(data.count) bytes")
-            return 
+            return
         }
-        
-        let _ = data[0] // flags - not used in this implementation
-        let crankRevolutionCount = data.subdata(in: 1..<3).withUnsafeBytes { $0.load(as: UInt16.self) }
-        let lastCrankRevolutionTime = data.subdata(in: 3..<5).withUnsafeBytes { $0.load(as: UInt16.self) }
-        
-        print("Cadence data - Count: \(crankRevolutionCount), Time: \(lastCrankRevolutionTime)")
-        
-        // Calculate RPM
+
+        let flags = data[0]
+        var offset = 1
+
+        // Skip wheel data if present (UInt32 wheel revs + UInt16 last wheel event time)
+        if (flags & 0x01) != 0 {
+            guard data.count >= offset + 6 else {
+                print("CSC: Wheel data indicated but packet too short")
+                return
+            }
+            let wheelRevs = data.subdata(in: offset..<(offset + 4)).withUnsafeBytes { $0.load(as: UInt32.self) }
+            let wheelTime = data.subdata(in: (offset + 4)..<(offset + 6)).withUnsafeBytes { $0.load(as: UInt16.self) }
+            offset += 6
+            print("CSC Wheel - Revs: \(wheelRevs), Time: \(wheelTime)")
+        }
+
+        // Parse crank data if present
+        guard (flags & 0x02) != 0 else {
+            print("CSC: Crank data not present")
+            return
+        }
+
+        guard data.count >= offset + 4 else {
+            print("CSC: Crank data indicated but packet too short")
+            return
+        }
+
+        let crankRevolutionCount = data.subdata(in: offset..<(offset + 2)).withUnsafeBytes { $0.load(as: UInt16.self) }
+        let lastCrankRevolutionTime = data.subdata(in: (offset + 2)..<(offset + 4)).withUnsafeBytes { $0.load(as: UInt16.self) }
+
+        print("CSC Crank - Count: \(crankRevolutionCount), Time: \(lastCrankRevolutionTime)")
+
+        // Calculate RPM using wrap-safe deltas (time unit: 1/1024 s)
         if self.lastCrankRevolutionCount != 0 {
-            let revolutionDelta = crankRevolutionCount - self.lastCrankRevolutionCount
-            let timeDelta = lastCrankRevolutionTime - self.lastCrankRevolutionTime
-            
-            if timeDelta > 0 {
-                let rpm = Double(revolutionDelta) * 1024.0 / Double(timeDelta) * 60.0
-                
+            let revolutionDelta = UInt16(bitPattern: Int16(bitPattern: crankRevolutionCount) &- Int16(bitPattern: self.lastCrankRevolutionCount))
+            let timeDelta = UInt16(bitPattern: Int16(bitPattern: lastCrankRevolutionTime) &- Int16(bitPattern: self.lastCrankRevolutionTime))
+
+            let timeDeltaInt = Int(timeDelta)
+            print("CSC calculation - Revolution delta: \(revolutionDelta), Time delta (ticks): \(timeDeltaInt)")
+
+            if timeDeltaInt > 0 {
+                let seconds = Double(timeDeltaInt) / 1024.0
+                let rpm = (Double(revolutionDelta) / seconds) * 60.0
+
                 print("Calculated cadence: \(rpm) RPM")
-                
+
                 DispatchQueue.main.async {
                     self.cyclingCadence = rpm
                 }
-                
-                // Add to HealthKit
+
                 addCadenceSample(rpm)
+            } else {
+                print("CSC: Time delta is 0, cannot calculate RPM")
             }
+        } else {
+            print("CSC: First reading, storing initial values")
         }
-        
+
         self.lastCrankRevolutionCount = crankRevolutionCount
         self.lastCrankRevolutionTime = lastCrankRevolutionTime
     }
     
     private func parseFTMSData(_ data: Data) {
-        guard data.count >= 2 else { 
+        // Fitness Machine Service - Indoor Bike Data (0x2AD2)
+        // Flags are 16-bit, little-endian
+        guard data.count >= 2 else {
             print("FTMS data too short: \(data.count) bytes")
-            return 
+            return
         }
-        
-        let flags = data[0]
-        var offset = 1
-        
-        print("FTMS flags: \(String(format: "%02X", flags))")
-        
-        // Check if instantaneous power is present (bit 0)
-        if (flags & 0x01) != 0 && data.count >= offset + 2 {
-            let power = data.subdata(in: offset..<offset + 2).withUnsafeBytes { $0.load(as: UInt16.self) }
+
+        let flags = UInt16(data[0]) | (UInt16(data[1]) << 8)
+        var offset = 2
+
+        func readUInt16() -> UInt16? {
+            guard data.count >= offset + 2 else { return nil }
+            let v = data.subdata(in: offset..<(offset + 2)).withUnsafeBytes { $0.load(as: UInt16.self) }
             offset += 2
-            
-            print("FTMS power: \(power) watts")
-            
-            DispatchQueue.main.async {
-                self.cyclingPower = Double(power)
-            }
-            
-            // Add to HealthKit
-            addPowerSample(Double(power))
+            return v
         }
-        
-        // Check if instantaneous cadence is present (bit 1)
-        if (flags & 0x02) != 0 && data.count >= offset + 1 {
-            let cadence = data[offset]
-            offset += 1
-            
-            print("FTMS cadence: \(cadence) RPM")
-            
-            DispatchQueue.main.async {
-                self.cyclingCadence = Double(cadence)
-            }
-            
-            // Add to HealthKit
-            addCadenceSample(Double(cadence))
-        }
-        
-        // Check if accumulated power is present (bit 2)
-        if (flags & 0x04) != 0 && data.count >= offset + 2 {
-            let _ = data.subdata(in: offset..<offset + 2).withUnsafeBytes { $0.load(as: UInt16.self) }
+
+        func readInt16() -> Int16? {
+            guard data.count >= offset + 2 else { return nil }
+            let v = data.subdata(in: offset..<(offset + 2)).withUnsafeBytes { $0.load(as: Int16.self) }
             offset += 2
-            // Accumulated power not used in this implementation
+            return v
         }
-        
-        // Check if heart rate is present (bit 3)
-        if (flags & 0x08) != 0 && data.count >= offset + 1 {
-            let heartRate = data[offset]
+
+        func readUInt8() -> UInt8? {
+            guard data.count > offset else { return nil }
+            let v = data[offset]
             offset += 1
-            
-            DispatchQueue.main.async {
-                self.heartRate = Double(heartRate)
-            }
+            return v
         }
-        
-        // Additional FTMS fields can be parsed here as needed
-        // (speed, distance, time, etc.)
+
+        func readUInt24() -> UInt32? {
+            guard data.count >= offset + 3 else { return nil }
+            let b0 = UInt32(data[offset])
+            let b1 = UInt32(data[offset + 1])
+            let b2 = UInt32(data[offset + 2])
+            offset += 3
+            return b0 | (b1 << 8) | (b2 << 16)
+        }
+
+        print(String(format: "FTMS flags: 0x%04X", flags))
+
+        // Bit mapping (common for Indoor Bike Data):
+        // 0x0001: More Data (ignored)
+        // 0x0002: Instantaneous Speed present (SFloat -> stored as UInt16 scale 0.01 m/s)
+        // 0x0004: Average Speed present
+        // 0x0008: Instantaneous Cadence present (UInt16 in 0.5 RPM)
+        // 0x0010: Average Cadence present (UInt16 in 0.5 RPM)
+        // 0x0020: Total Distance present (UInt24 in meters)
+        // 0x0040: Resistance Level present (Int16)
+        // 0x0080: Instantaneous Power present (Int16 in watts)
+        // 0x0100: Average Power present (Int16)
+        // 0x0200: Total Energy present (UInt16 in kJ?)
+        // 0x0400: Energy Per Hour present (UInt16)
+        // 0x0800: Energy Per Minute present (UInt8)
+        // 0x1000: Heart Rate present (UInt8)
+        // 0x2000: MET present (UInt8)
+        // 0x4000: Elapsed Time present (UInt16 seconds)
+        // 0x8000: Remaining Time present (UInt16 seconds)
+
+        if (flags & 0x0002) != 0 { _ = readUInt16() /* inst speed */ }
+        if (flags & 0x0004) != 0 { _ = readUInt16() /* avg speed */ }
+
+        if (flags & 0x0008) != 0, let cadenceHalfRpm = readUInt16() {
+            let cadenceRpm = Double(cadenceHalfRpm) / 2.0
+            print("FTMS instantaneous cadence: \(cadenceRpm) RPM (raw: \(cadenceHalfRpm))")
+            DispatchQueue.main.async { self.cyclingCadence = cadenceRpm }
+            addCadenceSample(cadenceRpm)
+        }
+
+        if (flags & 0x0010) != 0 { _ = readUInt16() /* avg cadence */ }
+        if (flags & 0x0020) != 0 { _ = readUInt24() /* total distance */ }
+        if (flags & 0x0040) != 0 { _ = readInt16() /* resistance level */ }
+
+        if (flags & 0x0080) != 0, let instPower = readInt16() {
+            let powerWatts = Int(instPower)
+            print("FTMS instantaneous power: \(powerWatts) W")
+            DispatchQueue.main.async { self.cyclingPower = Double(powerWatts) }
+            addPowerSample(Double(powerWatts))
+        }
+
+        if (flags & 0x0100) != 0 { _ = readInt16() /* avg power */ }
+        if (flags & 0x0200) != 0 { _ = readUInt16() /* total energy */ }
+        if (flags & 0x0400) != 0 { _ = readUInt16() /* energy/hour */ }
+        if (flags & 0x0800) != 0 { _ = readUInt8()  /* energy/min */ }
+
+        if (flags & 0x1000) != 0 {
+            _ = readUInt8() // Heart rate present; ignore to avoid conflicting with watch HR
+        }
+
+        if (flags & 0x2000) != 0 { _ = readUInt8()  /* MET */ }
+        if (flags & 0x4000) != 0 { _ = readUInt16() /* elapsed time */ }
+        if (flags & 0x8000) != 0 { _ = readUInt16() /* remaining time */ }
+
+        if data.count > offset {
+            let remainingData = data.subdata(in: offset..<data.count)
+            print("FTMS remaining data: \(remainingData.map { String(format: "%02X", $0) }.joined(separator: " "))")
+        }
     }
     
     // MARK: - HealthKit Sample Addition
@@ -441,9 +516,25 @@ extension WorkoutManager: CBCentralManagerDelegate {
         print("Advertisement data: \(advertisementData)")
         print("RSSI: \(RSSI)")
         
-        if !connectedPeripherals.contains(peripheral) {
-            connectedPeripherals.append(peripheral)
-            central.connect(peripheral, options: nil)
+        // Check if this peripheral has cycling services
+        if let serviceUUIDs = advertisementData["kCBAdvDataServiceUUIDs"] as? [CBUUID] {
+            let hasCyclingServices = serviceUUIDs.contains { uuid in
+                uuid == cyclingPowerServiceUUID || 
+                uuid == cyclingSpeedCadenceServiceUUID || 
+                uuid == ftmsServiceUUID
+            }
+            
+            if hasCyclingServices {
+                print("Found cycling device: \(peripheral.name ?? "Unknown") - attempting connection")
+                if !connectedPeripherals.contains(peripheral) {
+                    connectedPeripherals.append(peripheral)
+                    central.connect(peripheral, options: nil)
+                }
+            } else {
+                print("Skipping non-cycling device: \(peripheral.name ?? "Unknown")")
+            }
+        } else {
+            print("No service UUIDs in advertisement data for: \(peripheral.name ?? "Unknown")")
         }
     }
     
@@ -505,6 +596,16 @@ extension WorkoutManager: CBPeripheralDelegate {
                 // FTMS data characteristic can provide both power and cadence
                 powerCharacteristic = characteristic
                 cadenceCharacteristic = characteristic
+                peripheral.setNotifyValue(true, for: characteristic)
+            }
+            // Check for other power-related characteristics
+            else if characteristic.uuid.uuidString == "2AD9" {
+                // FTMS Power Range characteristic
+                print("Found FTMS Power Range characteristic")
+                peripheral.setNotifyValue(true, for: characteristic)
+            } else if characteristic.uuid.uuidString == "2ADA" {
+                // FTMS Resistance Level characteristic
+                print("Found FTMS Resistance Level characteristic")
                 peripheral.setNotifyValue(true, for: characteristic)
             }
         }
