@@ -20,6 +20,7 @@ class WorkoutManager: NSObject, ObservableObject {
     @Published var isAwaitingSave: Bool = false
     @Published var isScanning: Bool = false
     @Published var connectedDevices: [String] = []
+    @Published var distanceMeters: Double = 0
     
     // MARK: - HealthKit Properties
     private let healthStore = HKHealthStore()
@@ -456,7 +457,10 @@ class WorkoutManager: NSObject, ObservableObject {
         }
 
         if (flags & 0x0010) != 0 { _ = readUInt16() /* avg cadence */ }
-        if (flags & 0x0020) != 0 { _ = readUInt24() /* total distance */ }
+        if (flags & 0x0020) != 0, let totalDistance = readUInt24() {
+            let meters = Double(totalDistance)
+            DispatchQueue.main.async { self.distanceMeters = meters }
+        }
         if (flags & 0x0040) != 0 { _ = readInt16() /* resistance level */ }
 
         if (flags & 0x0080) != 0, let instPower = readInt16() {

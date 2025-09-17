@@ -33,10 +33,10 @@ struct WorkoutView: View {
                     color: .blue
                 )
                 DataCard(
-                    title: "Devices",
-                    value: "\(workoutManager.connectedDevices.count)",
-                    unit: "",
-                    icon: "antenna.radiowaves.left.and.right",
+                    title: "Distance",
+                    value: "\(distanceValue)",
+                    unit: "\(distanceUnit)",
+                    icon: "map",
                     color: .green
                 )
             }
@@ -66,6 +66,13 @@ struct WorkoutView: View {
         if hours > 0 { return String(format: "%d:%02d:%02d", hours, minutes, seconds) }
         return String(format: "%d:%02d", minutes, seconds)
     }
+    
+    private var distanceValue: String {
+        let miles = workoutManager.distanceMeters / 1609.34
+        return String(format: "%.1f", miles)
+    }
+    
+    private var distanceUnit: String { "mi" }
 }
 
 #if DEBUG
