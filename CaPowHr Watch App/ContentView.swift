@@ -31,6 +31,17 @@ struct ContentView: View {
                         .fontWeight(.semibold)
                         .foregroundColor(.primary)
                     
+                    // Connection status
+                    if workoutManager.connectedDevices.isEmpty {
+                        Text("Connecting sensors…")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("\(workoutManager.connectedDevices.count) sensor(s) connected")
+                            .font(.caption)
+                            .foregroundColor(.green)
+                    }
+                    
                     // Data Grid
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 8) {
                         // Heart Rate
@@ -59,9 +70,6 @@ struct ContentView: View {
                             icon: "speedometer",
                             color: .blue
                         )
-                        .onAppear {
-                            print("UI: Cadence value is \(workoutManager.cyclingCadence)")
-                        }
                         
                         // Connected Devices
                         DataCard(
@@ -75,32 +83,32 @@ struct ContentView: View {
                 }
             } else {
                 // Pre-workout state
-                VStack(spacing: 12) {
-                    Image(systemName: "bicycle.circle.fill")
-                        .font(.system(size: 40))
-                        .foregroundColor(.green)
-                    
-                    Text("Ready to Ride")
-                        .font(.title3)
-                        .fontWeight(.medium)
-                    
+                VStack(spacing: 8) {
                     if workoutManager.connectedDevices.isEmpty {
-                        Text("Searching for sensors...")
-                            .font(.caption)
+                        Text("No sensors connected")
+                            .font(.footnote)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
                             .foregroundColor(.secondary)
-                        
-                        Button("Debug: Start Scan") {
-                            workoutManager.startScanningForTesting()
-                        }
-                        .font(.caption2)
-                        .foregroundColor(.blue)
+                            .padding(.horizontal, 4)
                     } else {
-                        Text("\(workoutManager.connectedDevices.count) sensor(s) connected")
-                            .font(.caption)
+                        Text("Connected: \(workoutManager.connectedDevices.joined(separator: ", "))")
+                            .font(.footnote)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
                             .foregroundColor(.green)
+                            .padding(.horizontal, 4)
                     }
+
+                    Button("Connect Sensors") {
+                        workoutManager.startScanningForTesting()
+                    }
+                    .font(.subheadline)
+                    .foregroundColor(.blue)
                 }
-                .padding(.vertical, 20)
+                .padding(.vertical, 0)
             }
             
             Spacer()
@@ -118,13 +126,13 @@ struct ContentView: View {
                     .fontWeight(.bold)
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
+                    .padding(.vertical, 10)
                     .background(workoutManager.isWorkoutActive ? Color.red : Color.green)
                     .cornerRadius(8)
             }
             .buttonStyle(PlainButtonStyle())
-            .padding(.horizontal, 16)
-            .padding(.bottom, 8)
+            .padding(.horizontal, 12)
+            .padding(.bottom, 6)
         }
         .onAppear {
             workoutManager.requestHealthKitAuthorization()
