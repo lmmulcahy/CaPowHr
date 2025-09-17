@@ -85,6 +85,12 @@ struct ContentView: View {
                         Text("Searching for sensors...")
                             .font(.caption)
                             .foregroundColor(.secondary)
+                        
+                        Button("Debug: Start Scan") {
+                            workoutManager.startScanningForTesting()
+                        }
+                        .font(.caption2)
+                        .foregroundColor(.blue)
                     } else {
                         Text("\(workoutManager.connectedDevices.count) sensor(s) connected")
                             .font(.caption)

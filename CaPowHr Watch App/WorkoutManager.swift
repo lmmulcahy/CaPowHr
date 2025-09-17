@@ -218,16 +218,35 @@ class WorkoutManager: NSObject, ObservableObject {
     }
     
     // MARK: - Bluetooth Scanning
+    func startScanningForTesting() {
+        startScanning()
+    }
+    
     private func startScanning() {
-        guard centralManager.state == .poweredOn else { return }
+        guard centralManager.state == .poweredOn else { 
+            print("Bluetooth not powered on, state: \(centralManager.state.rawValue)")
+            return 
+        }
         
         isScanning = true
-        // Scan for both standard cycling services and FTMS
-        centralManager.scanForPeripherals(withServices: [cyclingPowerServiceUUID, cyclingSpeedCadenceServiceUUID, ftmsServiceUUID], options: nil)
+        print("Starting Bluetooth scan for cycling services...")
+        
+        // First scan for all devices to see what's available
+        centralManager.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
+        
+        // After 5 seconds, switch to specific service scanning
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+            if self.isScanning {
+                print("Switching to specific service scanning...")
+                self.centralManager.stopScan()
+                self.centralManager.scanForPeripherals(withServices: [self.cyclingPowerServiceUUID, self.cyclingSpeedCadenceServiceUUID, self.ftmsServiceUUID], options: nil)
+            }
+        }
     }
     
     private func stopScanning() {
         isScanning = false
+        print("Stopping Bluetooth scan...")
         centralManager.stopScan()
     }
     
@@ -398,6 +417,8 @@ extension WorkoutManager: CBCentralManagerDelegate {
     
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
         print("Discovered peripheral: \(peripheral.name ?? "Unknown")")
+        print("Advertisement data: \(advertisementData)")
+        print("RSSI: \(RSSI)")
         
         if !connectedPeripherals.contains(peripheral) {
             connectedPeripherals.append(peripheral)
