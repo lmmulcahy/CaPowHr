@@ -111,6 +111,7 @@
 				19B1A0D92E78FB0E003B71A0 /* CaPowHr Watch AppTests */,
 				19B1A0E32E78FB0E003B71A0 /* CaPowHr Watch AppUITests */,
 				19B1A0C22E78FB0D003B71A0 /* Products */,
+				19DBE6432E7A4B55008CF7C3 /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -123,6 +124,15 @@
 				19B1A0E02E78FB0E003B71A0 /* CaPowHr Watch AppUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		19DBE6432E7A4B55008CF7C3 /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				19B1A0F92E78FB0E003B71A0 /* HealthKit.framework */,
+				19B1A0FA2E78FB0E003B71A0 /* CoreBluetooth.framework */,
+			);
+			name = "Recovered References";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -458,16 +468,29 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = UX8Q7W992R;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = CaPowHr;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "CaPowHr uses Bluetooth to connect to cycling power meters and cadence sensors for accurate workout tracking.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "CaPowHr needs access to your health data to record cycling workouts with heart rate, power, and cadence data.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "CaPowHr needs to write workout data to Apple Health to track your cycling performance and fitness progress.";
+				INFOPLIST_KEY_UIBackgroundModes = "workout-processing";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = "com.MulcahyHeavyIndustries.CaPowHr";
 				INFOPLIST_KEY_WKWatchOnly = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-framework",
+					HealthKit,
+					"-framework",
+					CoreBluetooth,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.MulcahyHeavyIndustries.CaPowHr.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -476,13 +499,6 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
 				WATCHOS_DEPLOYMENT_TARGET = 11.5;
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					"-framework",
-					HealthKit,
-					"-framework",
-					CoreBluetooth,
-				);
 			};
 			name = Debug;
 		};
@@ -493,16 +509,29 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = UX8Q7W992R;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = CaPowHr;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "CaPowHr uses Bluetooth to connect to cycling power meters and cadence sensors for accurate workout tracking.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "CaPowHr needs access to your health data to record cycling workouts with heart rate, power, and cadence data.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "CaPowHr needs to write workout data to Apple Health to track your cycling performance and fitness progress.";
+				INFOPLIST_KEY_UIBackgroundModes = "workout-processing";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = "com.MulcahyHeavyIndustries.CaPowHr";
 				INFOPLIST_KEY_WKWatchOnly = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-framework",
+					HealthKit,
+					"-framework",
+					CoreBluetooth,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.MulcahyHeavyIndustries.CaPowHr.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -512,13 +541,6 @@
 				TARGETED_DEVICE_FAMILY = 4;
 				VALIDATE_PRODUCT = YES;
 				WATCHOS_DEPLOYMENT_TARGET = 11.5;
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					"-framework",
-					HealthKit,
-					"-framework",
-					CoreBluetooth,
-				);
 			};
 			name = Release;
 		};
