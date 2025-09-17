@@ -5,6 +5,16 @@ struct StartView: View {
     
     var body: some View {
         VStack(spacing: 8) {
+            // Header
+            HStack {
+                Image(systemName: "bicycle")
+                    .foregroundColor(.green)
+                Text("CaPowHr")
+                    .font(.headline)
+                    .fontWeight(.bold)
+            }
+            .padding(.top, 4)
+            
             if workoutManager.connectedDevices.isEmpty {
                 Text("No sensors connected")
                     .font(.footnote)

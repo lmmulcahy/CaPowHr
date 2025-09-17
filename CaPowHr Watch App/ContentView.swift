@@ -12,16 +12,6 @@ struct ContentView: View {
     
     var body: some View {
         VStack(spacing: 8) {
-            // Header
-            HStack {
-                Image(systemName: "bicycle")
-                    .foregroundColor(.green)
-                Text("CaPowHr")
-                    .font(.headline)
-                    .fontWeight(.bold)
-            }
-            .padding(.top, 4)
-            
             // Body Content
             if workoutManager.isWorkoutActive {
                 WorkoutView(workoutManager: workoutManager)
