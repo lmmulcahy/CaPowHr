@@ -234,30 +234,21 @@ Implement formal state machine for workout lifecycle:
 ### Missing HealthKit Data Storage
 Currently collecting but **NOT storing** to HealthKit:
 
-#### 1. Distance Data ❌
-- **Issue**: `distanceMeters` collected from FTMS data (line 462) but no `addDistanceSample()` method
-- **Missing Permission**: `.distanceCycling` not in `typesToWrite` (line 73-79)
-- **Fix**: Add distance storage method and permission
+#### 1. Distance Data ✅ FIXED
+- Added `.distanceCycling` to HealthKit write permissions
+- Implemented incremental `addDistanceSample(start:end:)` based on FTMS total distance
+- Initialized/reset tracking timestamps and last-saved meters
 
-#### 2. Active Energy Burned ❌  
-- **Issue**: Permission requested (line 78) but no calculation or storage implemented
-- **Fix**: Calculate calories from power/duration and store to HealthKit
+#### 2. Active Energy Burned ✅ FIXED  
+- Implemented `addEnergyBurnedSample(start:end:)` using simple conversion from power to kcal
+- Updates energy at each FTMS instant power update using elapsed time since last update
 
 #### 3. Speed Data (Optional) ⚠️
 - **Issue**: Could derive speed from distance/time but not implemented
 - **Fix**: Add `.speed` permission and calculation method
 
 ### Required Code Changes
-```swift
-// Add to typesToWrite permissions:
-HKObjectType.quantityType(forIdentifier: .distanceCycling)!,
-HKObjectType.quantityType(forIdentifier: .speed)!,
-
-// Add new storage methods:
-private func addDistanceSample(_ distance: Double)
-private func addEnergyBurnedSample(_ calories: Double)  
-private func addSpeedSample(_ speed: Double)
-```
+Implemented.
 
 ### HealthKit Data Completeness Summary
 | Metric | Collected | Stored to HealthKit | Status |
@@ -266,8 +257,8 @@ private func addSpeedSample(_ speed: Double)
 | Power | ✅ | ✅ | Complete |
 | Cadence | ✅ | ✅ | Complete |
 | Duration | ✅ | ✅ (workout session) | Complete |
-| Distance | ✅ | ❌ | **Missing** |
-| Calories | ❌ | ❌ | **Missing** |
+| Distance | ✅ | ✅ | Complete |
+| Calories | ✅ | ✅ | Complete |
 | Speed | ❌ | ❌ | Optional |
 
 ## Long-term Improvements 🚀

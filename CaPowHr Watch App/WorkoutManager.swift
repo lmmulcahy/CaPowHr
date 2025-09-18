@@ -39,6 +39,11 @@ class WorkoutManager: NSObject, ObservableObject {
     private var workoutTimer: Timer?
     private var workoutStartTime: Date?
     
+    // MARK: - HealthKit accumulation state
+    private var lastEnergyUpdateTime: Date?
+    private var lastDistanceUpdateTime: Date?
+    private var lastDistanceMetersSaved: Double = 0
+    
     // MARK: - Bluetooth Service and Characteristic UUIDs
     // Standard Cycling Services
     private let cyclingPowerServiceUUID = CBUUID(string: "1818")
@@ -76,7 +81,8 @@ class WorkoutManager: NSObject, ObservableObject {
             HKObjectType.quantityType(forIdentifier: .heartRate)!,
             HKObjectType.quantityType(forIdentifier: .cyclingPower)!,
             HKObjectType.quantityType(forIdentifier: .cyclingCadence)!,
-            HKObjectType.quantityType(forIdentifier: .activeEnergyBurned)!
+            HKObjectType.quantityType(forIdentifier: .activeEnergyBurned)!,
+            HKObjectType.quantityType(forIdentifier: .distanceCycling)!
         ]
         
         healthStore.requestAuthorization(toShare: typesToWrite, read: typesToRead) { success, error in
@@ -113,6 +119,10 @@ class WorkoutManager: NSObject, ObservableObject {
                         self?.startHeartRateQuery()
                         self?.startWorkoutTimer()
                         self?.startScanning()
+                        // Initialize accumulation timestamps
+                        self?.lastEnergyUpdateTime = Date()
+                        self?.lastDistanceUpdateTime = Date()
+                        self?.lastDistanceMetersSaved = 0
                     }
                 }
             }
@@ -182,6 +192,9 @@ class WorkoutManager: NSObject, ObservableObject {
             self.cyclingPower = 0
             self.cyclingCadence = 0
             self.workoutDuration = 0
+            self.lastEnergyUpdateTime = nil
+            self.lastDistanceUpdateTime = nil
+            self.lastDistanceMetersSaved = 0
         }
     }
     
@@ -476,6 +489,18 @@ class WorkoutManager: NSObject, ObservableObject {
         if (flags & 0x0020) != 0, let totalDistance = readUInt24() {
             let meters = Double(totalDistance)
             DispatchQueue.main.async { self.distanceMeters = meters }
+            let now = Date()
+            if let lastTime = lastDistanceUpdateTime {
+                let delta = meters - lastDistanceMetersSaved
+                if delta > 0 {
+                    addDistanceSample(delta, start: lastTime, end: now)
+                    lastDistanceMetersSaved = meters
+                    lastDistanceUpdateTime = now
+                }
+            } else {
+                lastDistanceUpdateTime = now
+                lastDistanceMetersSaved = meters
+            }
         }
         if (flags & 0x0040) != 0 { _ = readInt16() /* resistance level */ }
 
@@ -484,6 +509,16 @@ class WorkoutManager: NSObject, ObservableObject {
             print("FTMS instantaneous power: \(powerWatts) W")
             DispatchQueue.main.async { self.cyclingPower = Double(powerWatts) }
             addPowerSample(Double(powerWatts))
+            // Calculate and store active energy burned increment
+            let now = Date()
+            if let last = lastEnergyUpdateTime, powerWatts > 0 {
+                let seconds = now.timeIntervalSince(last)
+                if seconds > 0 {
+                    let kcal = (Double(powerWatts) * seconds) / 4184.0
+                    addEnergyBurnedSample(kcal, start: last, end: now)
+                }
+            }
+            lastEnergyUpdateTime = now
         }
 
         if (flags & 0x0100) != 0 { _ = readInt16() /* avg power */ }
@@ -528,6 +563,28 @@ class WorkoutManager: NSObject, ObservableObject {
         workoutBuilder?.add([cadenceSample]) { success, error in
             if let error = error {
                 print("Error adding cadence sample: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func addDistanceSample(_ distanceMetersDelta: Double, start: Date, end: Date) {
+        guard let distanceType = HKQuantityType.quantityType(forIdentifier: .distanceCycling) else { return }
+        let quantity = HKQuantity(unit: HKUnit.meter(), doubleValue: distanceMetersDelta)
+        let sample = HKQuantitySample(type: distanceType, quantity: quantity, start: start, end: end)
+        workoutBuilder?.add([sample]) { success, error in
+            if let error = error {
+                print("Error adding distance sample: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func addEnergyBurnedSample(_ kiloCalories: Double, start: Date, end: Date) {
+        guard let energyType = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned) else { return }
+        let quantity = HKQuantity(unit: HKUnit.kilocalorie(), doubleValue: kiloCalories)
+        let sample = HKQuantitySample(type: energyType, quantity: quantity, start: start, end: end)
+        workoutBuilder?.add([sample]) { success, error in
+            if let error = error {
+                print("Error adding energy sample: \(error.localizedDescription)")
             }
         }
     }
