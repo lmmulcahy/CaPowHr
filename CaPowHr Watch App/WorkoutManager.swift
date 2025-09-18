@@ -31,6 +31,7 @@ class WorkoutManager: NSObject, ObservableObject {
     // MARK: - CoreBluetooth Properties
     private var centralManager: CBCentralManager!
     private var connectedPeripherals: [CBPeripheral] = []
+    private var connectingPeripherals: [CBPeripheral] = [] // Keep strong references during connection attempts
     private var powerCharacteristic: CBCharacteristic?
     private var cadenceCharacteristic: CBCharacteristic?
     
@@ -281,16 +282,24 @@ class WorkoutManager: NSObject, ObservableObject {
     }
     
     private func stopScanning() {
-        isScanning = false
-        print("Stopping Bluetooth scan...")
-        centralManager.stopScan()
+        if isScanning {
+            isScanning = false
+            print("Stopping Bluetooth scan...")
+            centralManager.stopScan()
+        }
     }
     
     private func disconnectAllPeripherals() {
+        // Cancel connections for both connected and connecting peripherals
         for peripheral in connectedPeripherals {
             centralManager.cancelPeripheralConnection(peripheral)
         }
+        for peripheral in connectingPeripherals {
+            centralManager.cancelPeripheralConnection(peripheral)
+        }
+        
         connectedPeripherals.removeAll()
+        connectingPeripherals.removeAll()
         connectedDevices.removeAll()
     }
     
@@ -565,9 +574,14 @@ extension WorkoutManager: CBCentralManagerDelegate {
             
             if hasCyclingServices {
                 print("Found cycling device: \(peripheral.name ?? "Unknown") - attempting connection")
-                if !connectedPeripherals.contains(peripheral) {
-                    connectedPeripherals.append(peripheral)
+                if !connectedPeripherals.contains(peripheral) && !connectingPeripherals.contains(peripheral) {
+                    // Stop scanning to avoid interference with connection
+                    stopScanning()
+                    // Keep strong reference during connection attempt
+                    connectingPeripherals.append(peripheral)
+                    print("Connecting to \(peripheral.name ?? "Unknown")...")
                     central.connect(peripheral, options: nil)
+                    print("Peripheral state after connect call: \(peripheral.state.rawValue)")
                 }
             } else {
                 print("Skipping non-cycling device: \(peripheral.name ?? "Unknown")")
@@ -579,9 +593,22 @@ extension WorkoutManager: CBCentralManagerDelegate {
     
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         print("Connected to peripheral: \(peripheral.name ?? "Unknown")")
+        // Stop scanning once connected
+        stopScanning()
+        
+        // Connection succeeded; ensure arrays reflect connected state
+        if let index = connectingPeripherals.firstIndex(of: peripheral) {
+            connectingPeripherals.remove(at: index)
+        }
+        if !connectedPeripherals.contains(peripheral) {
+            connectedPeripherals.append(peripheral)
+        }
         
         DispatchQueue.main.async {
-            self.connectedDevices.append(peripheral.name ?? "Unknown Device")
+            let deviceName = peripheral.name ?? "Unknown Device"
+            if !self.connectedDevices.contains(deviceName) {
+                self.connectedDevices.append(deviceName)
+            }
         }
         
         peripheral.delegate = self
@@ -590,10 +617,22 @@ extension WorkoutManager: CBCentralManagerDelegate {
     
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
         print("Failed to connect to peripheral: \(error?.localizedDescription ?? "Unknown error")")
+        // Resume scanning to find devices again
+        startScanning()
+        
+        // Clean up from both arrays to allow re-attempts
+        if let index = connectingPeripherals.firstIndex(of: peripheral) {
+            connectingPeripherals.remove(at: index)
+        }
+        if let index = connectedPeripherals.firstIndex(of: peripheral) {
+            connectedPeripherals.remove(at: index)
+        }
     }
     
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         print("Disconnected from peripheral: \(peripheral.name ?? "Unknown")")
+        // Resume scanning to allow reconnection
+        startScanning()
         
         DispatchQueue.main.async {
             self.connectedDevices.removeAll { $0 == peripheral.name ?? "Unknown Device" }
@@ -601,6 +640,9 @@ extension WorkoutManager: CBCentralManagerDelegate {
         
         if let index = connectedPeripherals.firstIndex(of: peripheral) {
             connectedPeripherals.remove(at: index)
+        }
+        if let index = connectingPeripherals.firstIndex(of: peripheral) {
+            connectingPeripherals.remove(at: index)
         }
     }
 }

@@ -26,15 +26,31 @@
 
 ## Critical Bugs & Issues 🐛
 
+### ⚠️ URGENT: Bluetooth Connection Failures (FIXED) ✅
+- **Location**: `WorkoutManager.centralManager` delegate methods
+- **Issues Fixed**:
+  1. **Race Condition**: Added peripheral to `connectedPeripherals` before connection succeeded
+  2. **Scanning Loop**: Timer cleanup missing, causing infinite scanning cycles  
+  3. **Silent Failures**: No visible feedback for connection attempts/failures
+  4. **No Timeout**: Scanning continued indefinitely without connections
+  5. **CBPeripheral Memory Management**: Peripherals deallocated during connection attempts
+- **Solutions Applied**:
+  - ✅ Fixed connection tracking logic - only add to array on successful connection
+  - ✅ Added proper timer cleanup in scanning methods
+  - ✅ Added visual feedback with loading spinner in UI
+  - ✅ Added 30-second scanning timeout
+  - ✅ Improved error logging with emojis for better debugging
+  - ✅ **CRITICAL FIX**: Added `connectingPeripherals` array to maintain strong references during connection attempts
+
 ### 1. Memory Management
 - **Location**: `WorkoutManager.stopWorkoutTimer()` line 253
 - **Issue**: `workoutDuration` reset to 0 when stopping timer, losing workout data
 - **Fix**: Only reset duration in `discardCurrentWorkout()`, not `stopWorkoutTimer()`
 
-### 2. Bluetooth Connection Race Conditions
-- **Location**: `WorkoutManager.startScanning()` lines 261-281
+### 2. Bluetooth Connection Race Conditions ✅ FIXED
+- **Location**: `WorkoutManager.startScanning()` and connection handlers
 - **Issue**: No check if already connected to prevent duplicate connections
-- **Fix**: Add connection state validation before attempting new connections
+- **Fix**: ✅ Added connection state validation and proper peripheral tracking
 
 ### 3. Heart Rate Query Lifecycle
 - **Location**: `WorkoutManager.stopHeartRateQuery()` line 233
