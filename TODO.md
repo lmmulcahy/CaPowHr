@@ -11,14 +11,11 @@
 
 ### Areas for Improvement 🔄
 
-#### 1. Monolithic WorkoutManager Class
-- **Issue**: Single 687-line class handling multiple responsibilities
-- **Impact**: Difficult to maintain, test, and debug
-- **Solution**: Break into smaller, focused classes:
-  - `BluetoothManager` for sensor communication
-  - `HealthKitManager` for workout session management
-  - `WorkoutTimer` for duration tracking
-  - Keep `WorkoutManager` as coordinator
+#### 1. Monolithic WorkoutManager Class ✅ PARTIALLY FIXED
+- Extracted `BluetoothManager` to own file; handles scan/connect/disconnect and BLE parsing
+- `WorkoutManager` now subscribes via delegate and persists to HealthKit
+- Added `SensorDataParser` to encapsulate parsing logic for FTMS/CSC/power
+- Next: consider extracting `HealthKitManager` and `WorkoutTimer`
 
 #### 2. State Management Complexity
 - **Issue**: Mixed state handling between UI state and data state
