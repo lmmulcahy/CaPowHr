@@ -260,6 +260,11 @@ class WorkoutManager: NSObject, ObservableObject {
     }
     
     private func startScanning() {
+        // Avoid re-entrant scanning
+        if isScanning { 
+            print("Already scanning; ignoring startScanning request")
+            return 
+        }
         guard centralManager.state == .poweredOn else { 
             print("Bluetooth not powered on, state: \(centralManager.state.rawValue)")
             return 
@@ -276,17 +281,19 @@ class WorkoutManager: NSObject, ObservableObject {
             if self.isScanning {
                 print("Switching to specific service scanning...")
                 self.centralManager.stopScan()
-                self.centralManager.scanForPeripherals(withServices: [self.cyclingPowerServiceUUID, self.cyclingSpeedCadenceServiceUUID, self.ftmsServiceUUID], options: nil)
+                self.centralManager.scanForPeripherals(
+                    withServices: [self.cyclingPowerServiceUUID, self.cyclingSpeedCadenceServiceUUID, self.ftmsServiceUUID],
+                    options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
+                )
             }
         }
     }
     
     private func stopScanning() {
-        if isScanning {
-            isScanning = false
-            print("Stopping Bluetooth scan...")
-            centralManager.stopScan()
-        }
+        if !isScanning { return }
+        isScanning = false
+        print("Stopping Bluetooth scan...")
+        centralManager.stopScan()
     }
     
     private func disconnectAllPeripherals() {
