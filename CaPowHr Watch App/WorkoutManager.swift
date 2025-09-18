@@ -272,6 +272,11 @@ class WorkoutManager: NSObject, ObservableObject {
         startScanning()
     }
     
+    func disconnectSensors() {
+        stopScanning()
+        disconnectAllPeripherals()
+    }
+    
     private func startScanning() {
         // Avoid re-entrant scanning
         if isScanning { 

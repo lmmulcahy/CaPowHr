@@ -33,11 +33,19 @@ struct StartView: View {
                     .padding(.horizontal, 4)
             }
             
-            Button("Connect Sensors") {
-                workoutManager.startScanningForTesting()
+            if workoutManager.connectedDevices.isEmpty {
+                Button("Connect Sensors") {
+                    workoutManager.startScanningForTesting()
+                }
+                .font(.subheadline)
+                .foregroundColor(.blue)
+            } else {
+                Button("Disconnect Sensors") {
+                    workoutManager.disconnectSensors()
+                }
+                .font(.subheadline)
+                .foregroundColor(.red)
             }
-            .font(.subheadline)
-            .foregroundColor(.blue)
 
             Spacer(minLength: 6)
 
