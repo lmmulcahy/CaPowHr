@@ -31,10 +31,8 @@ class WorkoutManager: NSObject, ObservableObject {
     
     // MARK: - CoreBluetooth Properties
     private var centralManager: CBCentralManager!
-    private var connectedPeripherals: [CBPeripheral] = []
-    private var connectingPeripherals: [CBPeripheral] = [] // Keep strong references during connection attempts
-    private var powerCharacteristic: CBCharacteristic?
-    private var cadenceCharacteristic: CBCharacteristic?
+    private let bluetoothManager = BluetoothManager()
+    // BLE fields moved into BluetoothManager
     
     // MARK: - Workout Timer
     private var workoutTimer: Timer?
@@ -47,15 +45,7 @@ class WorkoutManager: NSObject, ObservableObject {
     
     // MARK: - Bluetooth Service and Characteristic UUIDs
     // Standard Cycling Services
-    private let cyclingPowerServiceUUID = CBUUID(string: "1818")
-    private let cyclingSpeedCadenceServiceUUID = CBUUID(string: "1816")
-    private let powerMeasurementCharacteristicUUID = CBUUID(string: "2A63")
-    private let cscMeasurementCharacteristicUUID = CBUUID(string: "2A5B")
-    
-    // FTMS (Fitness Machine Service)
-    private let ftmsServiceUUID = CBUUID(string: "1826")
-    private let ftmsDataCharacteristicUUID = CBUUID(string: "2AD2")
-    private let ftmsControlPointCharacteristicUUID = CBUUID(string: "2AD9")
+    // UUIDs handled by BluetoothManager
     
     // MARK: - Cadence Calculation
     private var lastCrankRevolutionTime: UInt16 = 0
@@ -63,7 +53,9 @@ class WorkoutManager: NSObject, ObservableObject {
     
     override init() {
         super.init()
+        // Legacy central remains for backwards compatibility (will be removed)
         centralManager = CBCentralManager(delegate: self, queue: nil)
+        bluetoothManager.delegate = self
     }
     
     // MARK: - HealthKit Authorization
@@ -270,62 +262,30 @@ class WorkoutManager: NSObject, ObservableObject {
     
     // MARK: - Bluetooth Scanning
     func startScanningForTesting() {
-        startScanning()
+        bluetoothManager.startScanning()
     }
     
     func disconnectSensors() {
-        stopScanning()
-        disconnectAllPeripherals()
+        bluetoothManager.stopScanning()
+        bluetoothManager.disconnectAll()
     }
     
     private func startScanning() {
         // Avoid re-entrant scanning
-        if isScanning { 
-            print("Already scanning; ignoring startScanning request")
-            return 
-        }
-        guard centralManager.state == .poweredOn else { 
-            print("Bluetooth not powered on, state: \(centralManager.state.rawValue)")
-            return 
-        }
-        
+        if isScanning { return }
         isScanning = true
-        print("Starting Bluetooth scan for cycling services...")
-        
-        // First scan for all devices to see what's available
-        centralManager.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
-        
-        // After 5 seconds, switch to specific service scanning
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
-            if self.isScanning {
-                print("Switching to specific service scanning...")
-                self.centralManager.stopScan()
-                self.centralManager.scanForPeripherals(
-                    withServices: [self.cyclingPowerServiceUUID, self.cyclingSpeedCadenceServiceUUID, self.ftmsServiceUUID],
-                    options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
-                )
-            }
-        }
+        bluetoothManager.startScanning()
     }
     
     private func stopScanning() {
         if !isScanning { return }
         isScanning = false
-        print("Stopping Bluetooth scan...")
-        centralManager.stopScan()
+        bluetoothManager.stopScanning()
     }
     
     private func disconnectAllPeripherals() {
-        // Cancel connections for both connected and connecting peripherals
-        for peripheral in connectedPeripherals {
-            centralManager.cancelPeripheralConnection(peripheral)
-        }
-        for peripheral in connectingPeripherals {
-            centralManager.cancelPeripheralConnection(peripheral)
-        }
-        
-        connectedPeripherals.removeAll()
-        connectingPeripherals.removeAll()
+        // Delegated to BluetoothManager
+        bluetoothManager.disconnectAll()
         connectedDevices.removeAll()
     }
     
@@ -619,191 +579,79 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
 }
 
 
-// MARK: - CBCentralManagerDelegate
+// MARK: - CBCentralManagerDelegate (legacy)
 extension WorkoutManager: CBCentralManagerDelegate {
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        switch central.state {
-        case .poweredOn:
+        // Delegate handled by BluetoothManager
+        if central.state == .poweredOn {
             print("Bluetooth is powered on")
-        case .poweredOff:
-            print("Bluetooth is powered off")
-        case .resetting:
-            print("Bluetooth is resetting")
-        case .unauthorized:
-            print("Bluetooth is unauthorized")
-        case .unsupported:
-            print("Bluetooth is unsupported")
-        case .unknown:
-            print("Bluetooth state is unknown")
-        @unknown default:
-            print("Unknown Bluetooth state")
         }
     }
     
-    func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
-        print("Discovered peripheral: \(peripheral.name ?? "Unknown")")
-        print("Advertisement data: \(advertisementData)")
-        print("RSSI: \(RSSI)")
-        
-        // Check if this peripheral has cycling services
-        if let serviceUUIDs = advertisementData["kCBAdvDataServiceUUIDs"] as? [CBUUID] {
-            let hasCyclingServices = serviceUUIDs.contains { uuid in
-                uuid == cyclingPowerServiceUUID || 
-                uuid == cyclingSpeedCadenceServiceUUID || 
-                uuid == ftmsServiceUUID
-            }
-            
-            if hasCyclingServices {
-                print("Found cycling device: \(peripheral.name ?? "Unknown") - attempting connection")
-                if !connectedPeripherals.contains(peripheral) && !connectingPeripherals.contains(peripheral) {
-                    // Stop scanning to avoid interference with connection
-                    stopScanning()
-                    // Keep strong reference during connection attempt
-                    connectingPeripherals.append(peripheral)
-                    print("Connecting to \(peripheral.name ?? "Unknown")...")
-                    central.connect(peripheral, options: nil)
-                    print("Peripheral state after connect call: \(peripheral.state.rawValue)")
-                }
-            } else {
-                print("Skipping non-cycling device: \(peripheral.name ?? "Unknown")")
+    // Remaining CBCentralManager delegate methods are handled by BluetoothManager
+}
+
+// MARK: - BluetoothManagerDelegate
+extension WorkoutManager: BluetoothManagerDelegate {
+    func btDidDiscoverCyclingDevice(name: String) {
+        print("Found cycling device: \(name)")
+    }
+    
+    func btDidConnect(to name: String) {
+        DispatchQueue.main.async {
+            if !self.connectedDevices.contains(name) { self.connectedDevices.append(name) }
+            self.isScanning = false
+        }
+    }
+    
+    func btDidFailToConnect(name: String, error: Error?) {
+        print("Failed to connect to: \(name) error: \(error?.localizedDescription ?? "unknown")")
+        DispatchQueue.main.async { self.isScanning = true }
+    }
+    
+    func btDidDisconnect(name: String, error: Error?) {
+        DispatchQueue.main.async {
+            self.connectedDevices.removeAll { $0 == name }
+            self.isScanning = true
+        }
+    }
+    
+    func btDidUpdatePower(watts: Double) {
+        DispatchQueue.main.async { self.cyclingPower = watts }
+        addPowerSample(watts)
+    }
+    
+    func btDidUpdateCadence(rpm: Double) {
+        DispatchQueue.main.async { self.cyclingCadence = rpm }
+        addCadenceSample(rpm)
+    }
+    
+    func btDidUpdateSpeed(mps: Double) {
+        DispatchQueue.main.async { self.cyclingSpeedMps = mps }
+    }
+    
+    func btDidUpdateTotalDistance(meters: Double) {
+        DispatchQueue.main.async { self.distanceMeters = meters }
+        let now = Date()
+        if let lastTime = lastDistanceUpdateTime {
+            let delta = meters - lastDistanceMetersSaved
+            if delta > 0 {
+                addDistanceSample(delta, start: lastTime, end: now)
+                let dt = now.timeIntervalSince(lastTime)
+                if dt > 0 { DispatchQueue.main.async { self.cyclingSpeedMps = delta / dt } }
+                lastDistanceMetersSaved = meters
+                lastDistanceUpdateTime = now
             }
         } else {
-            print("No service UUIDs in advertisement data for: \(peripheral.name ?? "Unknown")")
+            lastDistanceUpdateTime = now
+            lastDistanceMetersSaved = meters
         }
     }
     
-    func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        print("Connected to peripheral: \(peripheral.name ?? "Unknown")")
-        // Stop scanning once connected
-        stopScanning()
-        
-        // Connection succeeded; ensure arrays reflect connected state
-        if let index = connectingPeripherals.firstIndex(of: peripheral) {
-            connectingPeripherals.remove(at: index)
-        }
-        if !connectedPeripherals.contains(peripheral) {
-            connectedPeripherals.append(peripheral)
-        }
-        
-        DispatchQueue.main.async {
-            let deviceName = peripheral.name ?? "Unknown Device"
-            if !self.connectedDevices.contains(deviceName) {
-                self.connectedDevices.append(deviceName)
-            }
-        }
-        
-        peripheral.delegate = self
-        peripheral.discoverServices([cyclingPowerServiceUUID, cyclingSpeedCadenceServiceUUID, ftmsServiceUUID])
-    }
-    
-    func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
-        print("Failed to connect to peripheral: \(error?.localizedDescription ?? "Unknown error")")
-        // Resume scanning to find devices again
-        startScanning()
-        
-        // Clean up from both arrays to allow re-attempts
-        if let index = connectingPeripherals.firstIndex(of: peripheral) {
-            connectingPeripherals.remove(at: index)
-        }
-        if let index = connectedPeripherals.firstIndex(of: peripheral) {
-            connectedPeripherals.remove(at: index)
-        }
-    }
-    
-    func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
-        print("Disconnected from peripheral: \(peripheral.name ?? "Unknown")")
-        // Resume scanning to allow reconnection
-        startScanning()
-        
-        DispatchQueue.main.async {
-            self.connectedDevices.removeAll { $0 == peripheral.name ?? "Unknown Device" }
-        }
-        
-        if let index = connectedPeripherals.firstIndex(of: peripheral) {
-            connectedPeripherals.remove(at: index)
-        }
-        if let index = connectingPeripherals.firstIndex(of: peripheral) {
-            connectingPeripherals.remove(at: index)
-        }
+    func btDidUpdateConnectedDevices(_ names: [String]) {
+        DispatchQueue.main.async { self.connectedDevices = names }
     }
 }
 
 // MARK: - CBPeripheralDelegate
-extension WorkoutManager: CBPeripheralDelegate {
-    func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
-        guard let services = peripheral.services else { return }
-        
-        for service in services {
-            print("Discovered service: \(service.uuid)")
-            peripheral.discoverCharacteristics(nil, for: service)
-        }
-    }
-    
-    func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
-        guard let characteristics = service.characteristics else { return }
-        
-        for characteristic in characteristics {
-            print("Discovered characteristic: \(characteristic.uuid)")
-            
-            // Standard cycling services
-            if characteristic.uuid == powerMeasurementCharacteristicUUID {
-                powerCharacteristic = characteristic
-                peripheral.setNotifyValue(true, for: characteristic)
-            } else if characteristic.uuid == cscMeasurementCharacteristicUUID {
-                cadenceCharacteristic = characteristic
-                peripheral.setNotifyValue(true, for: characteristic)
-            }
-            // FTMS service
-            else if characteristic.uuid == ftmsDataCharacteristicUUID {
-                // FTMS data characteristic can provide both power and cadence
-                powerCharacteristic = characteristic
-                cadenceCharacteristic = characteristic
-                peripheral.setNotifyValue(true, for: characteristic)
-            }
-            // Check for other power-related characteristics
-            else if characteristic.uuid.uuidString == "2AD9" {
-                // FTMS Power Range characteristic
-                print("Found FTMS Power Range characteristic")
-                peripheral.setNotifyValue(true, for: characteristic)
-            } else if characteristic.uuid.uuidString == "2ADA" {
-                // FTMS Resistance Level characteristic
-                print("Found FTMS Resistance Level characteristic")
-                peripheral.setNotifyValue(true, for: characteristic)
-            }
-        }
-    }
-    
-    func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-        guard let data = characteristic.value else { 
-            print("No data received from characteristic: \(characteristic.uuid)")
-            return 
-        }
-        
-        print("Received data from characteristic: \(characteristic.uuid)")
-        print("Data length: \(data.count) bytes")
-        print("Data: \(data.map { String(format: "%02X", $0) }.joined(separator: " "))")
-        
-        if characteristic.uuid == powerMeasurementCharacteristicUUID {
-            print("Parsing as cycling power data")
-            parsePowerData(data)
-        } else if characteristic.uuid == cscMeasurementCharacteristicUUID {
-            print("Parsing as cycling cadence data")
-            parseCadenceData(data)
-        } else if characteristic.uuid == ftmsDataCharacteristicUUID {
-            print("Parsing as FTMS data")
-            parseFTMSData(data)
-        } else {
-            print("Unknown characteristic UUID: \(characteristic.uuid)")
-        }
-    }
-    
-    func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
-        if let error = error {
-            print("Error updating notification state: \(error.localizedDescription)")
-        } else {
-            print("Notification state updated for characteristic: \(characteristic.uuid)")
-            print("Characteristic properties: \(characteristic.properties.rawValue)")
-            print("Characteristic isNotifying: \(characteristic.isNotifying)")
-        }
-    }
-}
+// Peripheral delegate handled by BluetoothManager
