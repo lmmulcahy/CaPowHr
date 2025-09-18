@@ -39,6 +39,13 @@ struct WorkoutView: View {
                     icon: "map",
                     color: .green
                 )
+                DataCard(
+                    title: "Speed",
+                    value: "\(speedValue)",
+                    unit: "\(speedUnit)",
+                    icon: "gauge.with.dots.needle.67percent",
+                    color: .purple
+                )
             }
             
             Spacer(minLength: 6)
@@ -73,6 +80,12 @@ struct WorkoutView: View {
     }
     
     private var distanceUnit: String { "mi" }
+
+    private var speedValue: String {
+        let mph = workoutManager.cyclingSpeedMps * 2.23694
+        return String(format: "%.1f", mph)
+    }
+    private var speedUnit: String { "mph" }
 }
 
 struct DataCard: View {

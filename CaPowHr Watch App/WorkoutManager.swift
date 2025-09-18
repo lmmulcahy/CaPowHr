@@ -15,6 +15,7 @@ class WorkoutManager: NSObject, ObservableObject {
     @Published var heartRate: Double = 0
     @Published var cyclingPower: Double = 0
     @Published var cyclingCadence: Double = 0
+    @Published var cyclingSpeedMps: Double = 0
     @Published var workoutDuration: TimeInterval = 0
     @Published var isWorkoutActive: Bool = false
     @Published var isAwaitingSave: Bool = false
@@ -480,7 +481,12 @@ class WorkoutManager: NSObject, ObservableObject {
         // 0x4000: Elapsed Time present (UInt16 seconds)
         // 0x8000: Remaining Time present (UInt16 seconds)
 
-        if (flags & 0x0002) != 0 { _ = readUInt16() /* inst speed */ }
+        if (flags & 0x0002) != 0, let instSpeedRaw = readUInt16() {
+            // Spec: scale 0.01 m/s
+            let speedMps = Double(instSpeedRaw) / 100.0
+            print(String(format: "FTMS instantaneous speed: %.2f m/s (raw: %d)", speedMps, instSpeedRaw))
+            DispatchQueue.main.async { self.cyclingSpeedMps = speedMps }
+        }
         if (flags & 0x0004) != 0 { _ = readUInt16() /* avg speed */ }
 
         if (flags & 0x0008) != 0, let cadenceHalfRpm = readUInt16() {
@@ -499,6 +505,12 @@ class WorkoutManager: NSObject, ObservableObject {
                 let delta = meters - lastDistanceMetersSaved
                 if delta > 0 {
                     addDistanceSample(delta, start: lastTime, end: now)
+                    // Fallback instantaneous speed from distance delta/time
+                    let dt = now.timeIntervalSince(lastTime)
+                    if dt > 0 {
+                        let speedMpsFallback = delta / dt
+                        DispatchQueue.main.async { self.cyclingSpeedMps = speedMpsFallback }
+                    }
                     lastDistanceMetersSaved = meters
                     lastDistanceUpdateTime = now
                 }
