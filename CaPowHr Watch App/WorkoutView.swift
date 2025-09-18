@@ -39,13 +39,6 @@ struct WorkoutView: View {
                     icon: "map",
                     color: .green
                 )
-                DataCard(
-                    title: "Speed",
-                    value: "\(speedValue)",
-                    unit: "\(speedUnit)",
-                    icon: "gauge.with.dots.needle.67percent",
-                    color: .purple
-                )
             }
             
             Spacer(minLength: 6)
