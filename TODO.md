@@ -11,11 +11,14 @@
 
 ### Areas for Improvement 🔄
 
-#### 1. Monolithic WorkoutManager Class ✅ PARTIALLY FIXED
-- Extracted `BluetoothManager` to own file; handles scan/connect/disconnect and BLE parsing
-- `WorkoutManager` now subscribes via delegate and persists to HealthKit
-- Added `SensorDataParser` to encapsulate parsing logic for FTMS/CSC/power
-- Next: consider extracting `HealthKitManager` and `WorkoutTimer`
+#### 1. Monolithic WorkoutManager Class ✅ FIXED
+- Extracted `BluetoothManager` (scan/connect/disconnect, BLE parsing via `SensorDataParser`)
+- Extracted `HealthKitManager` (authorization, workout session/builder lifecycle, HR query, sample writes)
+- Extracted `WorkoutTimer` (tick-driven duration updates)
+- `WorkoutManager` is now a lightweight coordinator wiring managers to UI state
+- Follow-ups:
+  - Remove legacy `CBCentralManager` remnants from `WorkoutManager` when confident
+  - Add focused unit tests for `SensorDataParser` and integration tests for `BluetoothManager` → `WorkoutManager`
 
 #### 2. State Management Complexity
 - **Issue**: Mixed state handling between UI state and data state
@@ -191,10 +194,10 @@ var formattedHeartRate: String {
 5. **Validate data parsing** edge cases
 
 ### Medium Priority 🟡
-1. **Extract Bluetooth logic** to separate manager class
-2. **Add comprehensive unit tests** for data parsing
-3. **Implement proper state management** patterns
-4. **Add input validation** for all parsing methods
+1. **Add comprehensive unit tests** for data parsing (`SensorDataParser`)
+2. **Implement proper state management** patterns
+3. **Add input validation** for all parsing methods
+4. Remove legacy Bluetooth references from `WorkoutManager`
 
 ### Low Priority 🟢
 1. **Refactor UI styling** into reusable components

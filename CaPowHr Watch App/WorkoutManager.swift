@@ -23,11 +23,8 @@ class WorkoutManager: NSObject, ObservableObject {
     @Published var connectedDevices: [String] = []
     @Published var distanceMeters: Double = 0
     
-    // MARK: - HealthKit Properties
-    private let healthStore = HKHealthStore()
-    private var workoutSession: HKWorkoutSession?
-    private var workoutBuilder: HKWorkoutBuilder?
-    private var heartRateQuery: HKAnchoredObjectQuery?
+    // MARK: - Health Services
+    private let hkManager = HealthKitManager()
     
     // MARK: - CoreBluetooth Properties
     private var centralManager: CBCentralManager!
@@ -35,8 +32,7 @@ class WorkoutManager: NSObject, ObservableObject {
     // BLE fields moved into BluetoothManager
     
     // MARK: - Workout Timer
-    private var workoutTimer: Timer?
-    private var workoutStartTime: Date?
+    private let workoutTimer = WorkoutTimer()
     
     // MARK: - HealthKit accumulation state
     private var lastEnergyUpdateTime: Date?
@@ -59,33 +55,7 @@ class WorkoutManager: NSObject, ObservableObject {
     }
     
     // MARK: - HealthKit Authorization
-    func requestHealthKitAuthorization() {
-        guard HKHealthStore.isHealthDataAvailable() else {
-            print("HealthKit is not available on this device")
-            return
-        }
-        
-        let typesToRead: Set<HKObjectType> = [
-            HKObjectType.quantityType(forIdentifier: .heartRate)!
-        ]
-        
-        let typesToWrite: Set<HKSampleType> = [
-            HKObjectType.workoutType(),
-            HKObjectType.quantityType(forIdentifier: .heartRate)!,
-            HKObjectType.quantityType(forIdentifier: .cyclingPower)!,
-            HKObjectType.quantityType(forIdentifier: .cyclingCadence)!,
-            HKObjectType.quantityType(forIdentifier: .activeEnergyBurned)!,
-            HKObjectType.quantityType(forIdentifier: .distanceCycling)!
-        ]
-        
-        healthStore.requestAuthorization(toShare: typesToWrite, read: typesToRead) { success, error in
-            if let error = error {
-                print("HealthKit authorization error: \(error.localizedDescription)")
-            } else if success {
-                print("HealthKit authorization granted")
-            }
-        }
-    }
+    func requestHealthKitAuthorization() { hkManager.requestAuthorization() }
     
     // MARK: - Workout Control
     func startWorkout() {
@@ -95,40 +65,30 @@ class WorkoutManager: NSObject, ObservableObject {
         configuration.activityType = .cycling
         configuration.locationType = .indoor
         
-        do {
-            workoutSession = try HKWorkoutSession(healthStore: healthStore, configuration: configuration)
-            workoutBuilder = workoutSession?.associatedWorkoutBuilder()
-            
-            workoutSession?.delegate = self
-            
-            workoutStartTime = Date()
-            workoutSession?.startActivity(with: Date())
-            workoutBuilder?.beginCollection(withStart: Date()) { [weak self] success, error in
-                if let error = error {
-                    print("Error beginning workout collection: \(error.localizedDescription)")
-                } else {
-                    DispatchQueue.main.async {
-                        self?.isWorkoutActive = true
-                        self?.startHeartRateQuery()
-                        self?.startWorkoutTimer()
-                        self?.startScanning()
-                        // Initialize accumulation timestamps
-                        self?.lastEnergyUpdateTime = Date()
-                        self?.lastDistanceUpdateTime = Date()
-                        self?.lastDistanceMetersSaved = 0
-                    }
+        hkManager.beginWorkout { [weak self] success, error in
+            if let error = error {
+                print("Error beginning workout collection: \(error.localizedDescription)")
+            } else if success {
+                DispatchQueue.main.async {
+                    guard let self = self else { return }
+                    self.isWorkoutActive = true
+                    self.hkManager.delegate = self
+                    self.hkManager.startHeartRateQuery()
+                    self.workoutTimer.onTick = { [weak self] seconds in self?.workoutDuration = seconds }
+                    self.workoutTimer.start()
+                    self.startScanning()
+                    self.lastEnergyUpdateTime = Date()
+                    self.lastDistanceUpdateTime = Date()
+                    self.lastDistanceMetersSaved = 0
                 }
             }
-        } catch {
-            print("Error starting workout: \(error.localizedDescription)")
         }
     }
     
     func stopWorkout() {
         guard isWorkoutActive else { return }
         
-        workoutSession?.end()
-        workoutBuilder?.endCollection(withEnd: Date()) { success, error in
+        hkManager.endWorkoutCollection { success, error in
             if let error = error {
                 print("Error ending workout collection: \(error.localizedDescription)")
             } else {
@@ -136,8 +96,8 @@ class WorkoutManager: NSObject, ObservableObject {
                 DispatchQueue.main.async {
                     self.isAwaitingSave = true
                     self.isWorkoutActive = false
-                    self.stopWorkoutTimer()
-                    self.stopHeartRateQuery()
+                    self.workoutTimer.stop()
+                    self.hkManager.stopHeartRateQuery()
                     self.stopScanning()
                 }
             }
@@ -145,21 +105,15 @@ class WorkoutManager: NSObject, ObservableObject {
     }
     
     private func finishWorkout() {
-        workoutBuilder?.finishWorkout { [weak self] workout, error in
-            if let error = error {
-                print("Error finishing workout: \(error.localizedDescription)")
-            } else {
-                print("Workout saved successfully")
-            }
-            
+        hkManager.finishWorkout { [weak self] success, _ in
+            if success { print("Workout saved successfully") }
             DispatchQueue.main.async {
-                self?.isWorkoutActive = false
-                self?.isAwaitingSave = false
-                self?.stopWorkoutTimer()
-                self?.stopHeartRateQuery()
-                self?.disconnectAllPeripherals()
-                self?.workoutBuilder = nil
-                self?.workoutSession = nil
+                guard let self = self else { return }
+                self.isWorkoutActive = false
+                self.isAwaitingSave = false
+                self.workoutTimer.stop()
+                self.hkManager.stopHeartRateQuery()
+                self.disconnectAllPeripherals()
             }
         }
     }
@@ -170,16 +124,14 @@ class WorkoutManager: NSObject, ObservableObject {
     }
     
     func discardCurrentWorkout() {
-        workoutBuilder?.discardWorkout()
+        hkManager.discardWorkout()
         print("Workout discarded")
         DispatchQueue.main.async {
             self.isAwaitingSave = false
             self.isWorkoutActive = false
-            self.stopWorkoutTimer()
-            self.stopHeartRateQuery()
+            self.workoutTimer.stop()
+            self.hkManager.stopHeartRateQuery()
             self.disconnectAllPeripherals()
-            self.workoutBuilder = nil
-            self.workoutSession = nil
             // Reset metrics
             self.heartRate = 0
             self.cyclingPower = 0
@@ -191,74 +143,9 @@ class WorkoutManager: NSObject, ObservableObject {
         }
     }
     
-    // MARK: - Heart Rate Monitoring
-    private func startHeartRateQuery() {
-        guard let heartRateType = HKQuantityType.quantityType(forIdentifier: .heartRate) else { return }
-        
-        let predicate = HKQuery.predicateForSamples(withStart: Date(), end: nil, options: .strictStartDate)
-        
-        heartRateQuery = HKAnchoredObjectQuery(
-            type: heartRateType,
-            predicate: predicate,
-            anchor: nil,
-            limit: HKObjectQueryNoLimit
-        ) { [weak self] query, samples, deletedObjects, anchor, error in
-            if let error = error {
-                print("Heart rate query error: \(error.localizedDescription)")
-                return
-            }
-            
-            guard let samples = samples as? [HKQuantitySample] else { return }
-            
-            if let latestSample = samples.last {
-                let heartRate = latestSample.quantity.doubleValue(for: HKUnit(from: "count/min"))
-                DispatchQueue.main.async {
-                    self?.heartRate = heartRate
-                }
-            }
-        }
-        
-        heartRateQuery?.updateHandler = { [weak self] query, samples, deletedObjects, anchor, error in
-            if let error = error {
-                print("Heart rate query update error: \(error.localizedDescription)")
-                return
-            }
-            
-            guard let samples = samples as? [HKQuantitySample] else { return }
-            
-            if let latestSample = samples.last {
-                let heartRate = latestSample.quantity.doubleValue(for: HKUnit(from: "count/min"))
-                DispatchQueue.main.async {
-                    self?.heartRate = heartRate
-                }
-            }
-        }
-        
-        healthStore.execute(heartRateQuery!)
-    }
+    // Heart rate query handled by HealthKitManager
     
-    private func stopHeartRateQuery() {
-        if let query = heartRateQuery {
-            healthStore.stop(query)
-            heartRateQuery = nil
-        }
-    }
-    
-    // MARK: - Workout Timer
-    private func startWorkoutTimer() {
-        workoutTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            guard let startTime = self?.workoutStartTime else { return }
-            DispatchQueue.main.async {
-                self?.workoutDuration = Date().timeIntervalSince(startTime)
-            }
-        }
-    }
-    
-    private func stopWorkoutTimer() {
-        workoutTimer?.invalidate()
-        workoutTimer = nil
-        workoutDuration = 0
-    }
+    // Workout timing handled by WorkoutTimer
     
     // MARK: - Bluetooth Scanning
     func startScanningForTesting() {
@@ -289,54 +176,7 @@ class WorkoutManager: NSObject, ObservableObject {
         connectedDevices.removeAll()
     }
     
-    // MARK: - HealthKit Sample Addition
-    private func addPowerSample(_ power: Double) {
-        guard let powerType = HKQuantityType.quantityType(forIdentifier: .cyclingPower) else { return }
-        
-        let powerQuantity = HKQuantity(unit: HKUnit.watt(), doubleValue: power)
-        let powerSample = HKQuantitySample(type: powerType, quantity: powerQuantity, start: Date(), end: Date())
-        
-        workoutBuilder?.add([powerSample]) { success, error in
-            if let error = error {
-                print("Error adding power sample: \(error.localizedDescription)")
-            }
-        }
-    }
-    
-    private func addCadenceSample(_ cadence: Double) {
-        guard let cadenceType = HKQuantityType.quantityType(forIdentifier: .cyclingCadence) else { return }
-        
-        let cadenceQuantity = HKQuantity(unit: HKUnit.count().unitDivided(by: HKUnit.minute()), doubleValue: cadence)
-        let cadenceSample = HKQuantitySample(type: cadenceType, quantity: cadenceQuantity, start: Date(), end: Date())
-        
-        workoutBuilder?.add([cadenceSample]) { success, error in
-            if let error = error {
-                print("Error adding cadence sample: \(error.localizedDescription)")
-            }
-        }
-    }
-
-    private func addDistanceSample(_ distanceMetersDelta: Double, start: Date, end: Date) {
-        guard let distanceType = HKQuantityType.quantityType(forIdentifier: .distanceCycling) else { return }
-        let quantity = HKQuantity(unit: HKUnit.meter(), doubleValue: distanceMetersDelta)
-        let sample = HKQuantitySample(type: distanceType, quantity: quantity, start: start, end: end)
-        workoutBuilder?.add([sample]) { success, error in
-            if let error = error {
-                print("Error adding distance sample: \(error.localizedDescription)")
-            }
-        }
-    }
-
-    private func addEnergyBurnedSample(_ kiloCalories: Double, start: Date, end: Date) {
-        guard let energyType = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned) else { return }
-        let quantity = HKQuantity(unit: HKUnit.kilocalorie(), doubleValue: kiloCalories)
-        let sample = HKQuantitySample(type: energyType, quantity: quantity, start: start, end: end)
-        workoutBuilder?.add([sample]) { success, error in
-            if let error = error {
-                print("Error adding energy sample: \(error.localizedDescription)")
-            }
-        }
-    }
+    // Sample writes are delegated to HealthKitManager
 }
 
 // MARK: - HKWorkoutSessionDelegate
@@ -390,12 +230,12 @@ extension WorkoutManager: BluetoothManagerDelegate {
     
     func btDidUpdatePower(watts: Double) {
         DispatchQueue.main.async { self.cyclingPower = watts }
-        addPowerSample(watts)
+        hkManager.addPowerSample(watts)
     }
     
     func btDidUpdateCadence(rpm: Double) {
         DispatchQueue.main.async { self.cyclingCadence = rpm }
-        addCadenceSample(rpm)
+        hkManager.addCadenceSample(rpm)
     }
     
     func btDidUpdateSpeed(mps: Double) {
@@ -408,7 +248,7 @@ extension WorkoutManager: BluetoothManagerDelegate {
         if let lastTime = lastDistanceUpdateTime {
             let delta = meters - lastDistanceMetersSaved
             if delta > 0 {
-                addDistanceSample(delta, start: lastTime, end: now)
+                hkManager.addDistanceSample(delta, start: lastTime, end: now)
                 let dt = now.timeIntervalSince(lastTime)
                 if dt > 0 { DispatchQueue.main.async { self.cyclingSpeedMps = delta / dt } }
                 lastDistanceMetersSaved = meters
@@ -422,6 +262,13 @@ extension WorkoutManager: BluetoothManagerDelegate {
     
     func btDidUpdateConnectedDevices(_ names: [String]) {
         DispatchQueue.main.async { self.connectedDevices = names }
+    }
+}
+
+// MARK: - HealthKitManagerDelegate
+extension WorkoutManager: HealthKitManagerDelegate {
+    func hkDidUpdateHeartRate(_ bpm: Double) {
+        DispatchQueue.main.async { self.heartRate = bpm }
     }
 }
 
