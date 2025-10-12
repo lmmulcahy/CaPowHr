@@ -52,6 +52,8 @@ final class BluetoothManager: NSObject {
     private var connectedPeripherals: [CBPeripheral] = []
     /// Strong references to keep peripherals alive while connecting.
     private var connectingPeripherals: [CBPeripheral] = []
+    /// Controls whether the manager should automatically resume scanning after disconnect/fail.
+    private var allowAutoReconnect: Bool = true
 
     // UUIDs
     private let cyclingPowerServiceUUID = CBUUID(string: "1818")   // Cycling Power Service
@@ -81,6 +83,8 @@ final class BluetoothManager: NSObject {
             print("Bluetooth not powered on, state: \(centralManager.state.rawValue)")
             return
         }
+        // User explicitly began scanning; allow auto-reconnect behavior going forward
+        allowAutoReconnect = true
         isScanning = true
         print("Starting Bluetooth scan for cycling services...")
         // Phase 1: broad scan for any peripheral (no service filter)
@@ -109,6 +113,8 @@ final class BluetoothManager: NSObject {
 
     /// Cancel all active and in-progress connections, and emit an empty device list.
     func disconnectAll() {
+        // User explicitly requested disconnect; suppress auto-reconnect until scanning is started again
+        allowAutoReconnect = false
         for p in connectedPeripherals { centralManager.cancelPeripheralConnection(p) }
         for p in connectingPeripherals { centralManager.cancelPeripheralConnection(p) }
         connectedPeripherals.removeAll()
@@ -166,8 +172,10 @@ extension BluetoothManager: CBCentralManagerDelegate {
         // Remove from in-flight connections so we can retry or scan again
         if let idx = connectingPeripherals.firstIndex(of: peripheral) { connectingPeripherals.remove(at: idx) }
         delegate?.btDidFailToConnect(name: peripheral.name ?? "Unknown", error: error)
-        // Restart scanning after a short delay to avoid rapid flapping
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in self?.startScanning() }
+        // Restart scanning after a short delay only if allowed
+        if allowAutoReconnect {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in self?.startScanning() }
+        }
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
@@ -177,8 +185,10 @@ extension BluetoothManager: CBCentralManagerDelegate {
         if let idx = connectingPeripherals.firstIndex(of: peripheral) { connectingPeripherals.remove(at: idx) }
         delegate?.btDidDisconnect(name: peripheral.name ?? "Unknown", error: error)
         delegate?.btDidUpdateConnectedDevices(connectedPeripherals.map { $0.name ?? "Unknown Device" })
-        // Resume scanning to allow reconnection
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in self?.startScanning() }
+        // Resume scanning to allow reconnection only if allowed
+        if allowAutoReconnect {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in self?.startScanning() }
+        }
     }
 }
 
