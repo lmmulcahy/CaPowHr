@@ -13,7 +13,7 @@ struct WorkoutView: View {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 8) {
                 DataCard(
                     title: "HR",
-                    value: "\(Int(workoutManager.heartRate))",
+                    value: heartRateValue,
                     unit: "BPM",
                     icon: "heart.fill",
                     color: .red
@@ -65,6 +65,10 @@ struct WorkoutView: View {
         let seconds = Int(duration) % 60
         if hours > 0 { return String(format: "%d:%02d:%02d", hours, minutes, seconds) }
         return String(format: "%d:%02d", minutes, seconds)
+    }
+
+    private var heartRateValue: String {
+        workoutManager.heartRate > 0 ? "\(Int(workoutManager.heartRate))" : "-"
     }
     
     private var distanceValue: String {
