@@ -71,7 +71,7 @@ class WorkoutManager: NSObject, ObservableObject {
             // Warn first; start display-only after user dismisses the alert
             DispatchQueue.main.async {
                 self.alertTitle = "Limited Permissions"
-                self.lastErrorMessage = "Workout will not be saved to Health because write permission is disabled. You can proceed to view live data, or enable Health permissions in Settings on your Apple Watch to save workouts."
+                self.lastErrorMessage = "Workout will not be saved to Health because write permission is disabled. You can proceed to view live data, or enable workout write permissions for CaPowHr in the iPhone Health app."
                 self.pendingDisplayOnlyStart = true
                 self.showingErrorAlert = true
             }
