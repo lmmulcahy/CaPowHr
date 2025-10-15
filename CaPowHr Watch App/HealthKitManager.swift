@@ -42,6 +42,11 @@ final class HealthKitManager: NSObject {
         }
     }
 
+    // MARK: - Authorization Status Helpers
+    func isWorkoutSharingAuthorized() -> Bool {
+        return healthStore.authorizationStatus(for: HKObjectType.workoutType()) == .sharingAuthorized
+    }
+
     // MARK: - Workout lifecycle
     func beginWorkout(configuration: HKWorkoutConfiguration = {
         let c = HKWorkoutConfiguration()
@@ -54,6 +59,8 @@ final class HealthKitManager: NSObject {
             let builder = session.associatedWorkoutBuilder()
             self.workoutSession = session
             self.workoutBuilder = builder
+            // Assign a live data source to ensure metrics stream correctly on all watchOS versions
+            builder.dataSource = HKLiveWorkoutDataSource(healthStore: healthStore, workoutConfiguration: configuration)
             session.startActivity(with: Date())
             builder.beginCollection(withStart: Date()) { success, error in
                 completion(success, error)

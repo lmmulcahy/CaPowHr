@@ -22,6 +22,11 @@ class WorkoutManager: NSObject, ObservableObject {
     @Published var isScanning: Bool = false
     @Published var connectedDevices: [String] = []
     @Published var distanceMeters: Double = 0
+    @Published var isDisplayOnlyMode: Bool = false
+    @Published var lastErrorMessage: String? = nil
+    @Published var showingErrorAlert: Bool = false
+    @Published var alertTitle: String? = nil
+    @Published var pendingDisplayOnlyStart: Bool = false
     
     // MARK: - Health Services
     private let hkManager = HealthKitManager()
@@ -61,13 +66,32 @@ class WorkoutManager: NSObject, ObservableObject {
     func startWorkout() {
         guard !isWorkoutActive else { return }
         
-        let configuration = HKWorkoutConfiguration()
+        let canShareWorkout = hkManager.isWorkoutSharingAuthorized()
+        if !canShareWorkout {
+            // Warn first; start display-only after user dismisses the alert
+            DispatchQueue.main.async {
+                self.alertTitle = "Limited Permissions"
+                self.lastErrorMessage = "Workout will not be saved to Health because write permission is disabled. You can proceed to view live data, or enable Health permissions in Settings on your Apple Watch to save workouts."
+                self.pendingDisplayOnlyStart = true
+                self.showingErrorAlert = true
+            }
+            return
+        }
+
+        var configuration = HKWorkoutConfiguration()
         configuration.activityType = .cycling
         configuration.locationType = .indoor
         
-        hkManager.beginWorkout { [weak self] success, error in
+        hkManager.beginWorkout(configuration: configuration) { [weak self] success, error in
             if let error = error {
                 print("Error beginning workout collection: \(error.localizedDescription)")
+                // Fallback to display-only mode after user dismisses alert
+                DispatchQueue.main.async {
+                    self?.alertTitle = "Limited Functionality"
+                    self?.lastErrorMessage = "Unable to start a saveable workout (\(error.localizedDescription)). Live data will be shown, but the workout will not be saved."
+                    self?.pendingDisplayOnlyStart = true
+                    self?.showingErrorAlert = true
+                }
             } else if success {
                 DispatchQueue.main.async {
                     guard let self = self else { return }
@@ -81,12 +105,48 @@ class WorkoutManager: NSObject, ObservableObject {
                     self.lastDistanceUpdateTime = Date()
                     self.lastDistanceMetersSaved = 0
                 }
+            } else {
+                // Unknown failure: offer display-only after user dismisses alert
+                DispatchQueue.main.async {
+                    self?.alertTitle = "Limited Functionality"
+                    self?.lastErrorMessage = "Unable to start a saveable workout. Live data will be shown, but the workout will not be saved."
+                    self?.pendingDisplayOnlyStart = true
+                    self?.showingErrorAlert = true
+                }
             }
         }
+    }
+
+    func beginDisplayOnlyWorkoutIfPending() {
+        guard pendingDisplayOnlyStart else { return }
+        pendingDisplayOnlyStart = false
+        isDisplayOnlyMode = true
+        isWorkoutActive = true
+        hkManager.delegate = self
+        hkManager.startHeartRateQuery()
+        workoutTimer.onTick = { [weak self] seconds in self?.workoutDuration = seconds }
+        workoutTimer.start()
+        startScanning()
+        lastEnergyUpdateTime = Date()
+        lastDistanceUpdateTime = Date()
+        lastDistanceMetersSaved = 0
     }
     
     func stopWorkout() {
         guard isWorkoutActive else { return }
+        
+        if isDisplayOnlyMode {
+            // No save flow; just stop and reset
+            DispatchQueue.main.async {
+                self.isWorkoutActive = false
+                self.isAwaitingSave = false
+                self.workoutTimer.stop()
+                self.hkManager.stopHeartRateQuery()
+                self.stopScanning()
+                self.isDisplayOnlyMode = false
+            }
+            return
+        }
         
         hkManager.endWorkoutCollection { success, error in
             if let error = error {

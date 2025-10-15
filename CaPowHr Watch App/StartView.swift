@@ -62,6 +62,20 @@ struct StartView: View {
                     .cornerRadius(8)
             }
             .buttonStyle(PlainButtonStyle())
+        .contentShape(Rectangle())
+        .alert(workoutManager.alertTitle ?? "Notice", isPresented: $workoutManager.showingErrorAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(workoutManager.lastErrorMessage ?? "Unknown error")
+        }
+        .onChange(of: workoutManager.showingErrorAlert) { isShowing in
+            if !isShowing {
+                // Alert was dismissed; begin display-only start on next tick to avoid publish-in-update
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    workoutManager.beginDisplayOnlyWorkoutIfPending()
+                }
+            }
+        }
         }
     }
 }
