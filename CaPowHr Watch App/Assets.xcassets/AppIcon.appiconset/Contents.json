@@ -1,16 +1,16 @@
 {
   "images" : [
     {
-      "filename" : "CaPowHr4.png",
-      "idiom" : "universal",
-      "platform" : "watchos",
+      "filename" : "CaPowHrNoAlpha 1.png",
+      "idiom" : "ios-marketing",
+      "scale" : "1x",
       "size" : "1024x1024"
     },
     {
-      "filename" : "CaPowHr4.png",
-      "idiom" : "ios-marketing",
-      "size" : "1024x1024",
-      "scale" : "1x"
+      "filename" : "CaPowHrNoAlpha.png",
+      "idiom" : "universal",
+      "platform" : "watchos",
+      "size" : "1024x1024"
     }
   ],
   "info" : {
