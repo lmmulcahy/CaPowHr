@@ -117,6 +117,14 @@ class WorkoutManager: NSObject, ObservableObject {
         }
     }
 
+    private func resetDistanceTracking() {
+        // Reset UI-facing distance and speed, and internal accumulation state
+        distanceMeters = 0
+        cyclingSpeedMps = 0
+        lastDistanceUpdateTime = nil
+        lastDistanceMetersSaved = 0
+    }
+
     func beginDisplayOnlyWorkoutIfPending() {
         guard pendingDisplayOnlyStart else { return }
         pendingDisplayOnlyStart = false
@@ -143,6 +151,7 @@ class WorkoutManager: NSObject, ObservableObject {
                 self.workoutTimer.stop()
                 self.hkManager.stopHeartRateQuery()
                 self.stopScanning()
+                self.resetDistanceTracking()
                 self.isDisplayOnlyMode = false
             }
             return
@@ -159,6 +168,7 @@ class WorkoutManager: NSObject, ObservableObject {
                     self.workoutTimer.stop()
                     self.hkManager.stopHeartRateQuery()
                     self.stopScanning()
+                    self.resetDistanceTracking()
                 }
             }
         }
@@ -174,6 +184,7 @@ class WorkoutManager: NSObject, ObservableObject {
                 self.workoutTimer.stop()
                 self.hkManager.stopHeartRateQuery()
                 self.disconnectAllPeripherals()
+                self.resetDistanceTracking()
             }
         }
     }
@@ -197,6 +208,8 @@ class WorkoutManager: NSObject, ObservableObject {
             self.cyclingPower = 0
             self.cyclingCadence = 0
             self.workoutDuration = 0
+            self.distanceMeters = 0
+            self.cyclingSpeedMps = 0
             self.lastEnergyUpdateTime = nil
             self.lastDistanceUpdateTime = nil
             self.lastDistanceMetersSaved = 0
