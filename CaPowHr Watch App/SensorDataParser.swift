@@ -11,9 +11,9 @@ import Foundation
 // - All multi-byte integer fields are little-endian.
 // - Unless otherwise stated, time fields in CSC are in 1/1024 second ticks and wrap at UInt16.
 // - Cadence from FTMS Indoor Bike Data is in 0.5 RPM units (UInt16), so rpm = raw / 2.
-// - Speed from FTMS Indoor Bike Data is in 0.01 m/s units (UInt16), so m/s = raw / 100.
+// - Speed from FTMS Indoor Bike Data is in 0.01 km/h units (UInt16), so m/s = (raw / 100) / 3.6.
 // - Distance from FTMS Indoor Bike Data is in UInt24 meters (3 bytes, little-endian).
-// - Power values are in watts. FTMS power is Int16; Cycling Power Measurement example here treats first 2 bytes as instantaneous power UInt16.
+// - Power values are in watts. FTMS power is Int16. Cycling Power Measurement (2A63) instantaneous power is Int16 after a 2-byte flags field.
 
 /// Parsed subset of FTMS (Indoor Bike Data) fields we care about.
 /// Omitted fields are ignored upstream and can be added here as needed.
@@ -27,11 +27,15 @@ struct FTMSData {
 /// A namespace for pure parsing helpers. These functions are deterministic and side-effect free.
 enum SensorDataParser {
     /// Parse a Cycling Power Measurement payload (0x2A63) for instantaneous power.
-    /// This implementation assumes the first two bytes are instantaneous power in watts.
-    /// If a device includes flags and additional fields, extend this to decode by spec flags.
+    /// Per spec, the first two bytes are flags and the next two bytes are instantaneous power (Int16, watts).
+    /// Some devices may send a truncated payload (power only); we keep a fallback for that case.
     static func parsePowerMeasurement(_ data: Data) -> Double? {
+        if data.count >= 4 {
+            let instPower = data.subdata(in: 2..<4).withUnsafeBytes { $0.load(as: Int16.self) }
+            return Double(instPower)
+        }
         guard data.count >= 2 else { return nil }
-        let watts = data.subdata(in: 0..<2).withUnsafeBytes { $0.load(as: UInt16.self) }
+        let watts = data.subdata(in: 0..<2).withUnsafeBytes { $0.load(as: Int16.self) }
         return Double(watts)
     }
 
@@ -59,13 +63,13 @@ enum SensorDataParser {
     /// Parse FTMS Indoor Bike Data (0x2AD2) and return selected fields.
     ///
     /// Flags (16-bit) indicate which fields are present. This parser reads:
-    /// - Instantaneous Speed (0x0002): UInt16 in 0.01 m/s
-    /// - Average Speed (0x0004): ignored
-    /// - Instantaneous Cadence (0x0008): UInt16 in 0.5 RPM
-    /// - Average Cadence (0x0010): ignored
-    /// - Total Distance (0x0020): UInt24 in meters
-    /// - Resistance Level (0x0040): ignored
-    /// - Instantaneous Power (0x0080): Int16 in watts
+    /// - Instantaneous Speed (always present): UInt16 in 0.01 km/h
+    /// - Average Speed (0x0002): ignored
+    /// - Instantaneous Cadence (0x0004): UInt16 in 0.5 RPM
+    /// - Average Cadence (0x0008): ignored
+    /// - Total Distance (0x0010): UInt24 in meters
+    /// - Resistance Level (0x0020): ignored
+    /// - Instantaneous Power (0x0040): Int16 in watts
     /// Remaining flags are ignored but can be added as needed.
     static func parseFTMS(_ data: Data) -> FTMSData {
         // Accumulator for parsed values
@@ -76,6 +80,18 @@ enum SensorDataParser {
         let flags = UInt16(data[0]) | (UInt16(data[1]) << 8)
         // Cursor into the variable-length payload following flags
         var offset = 2
+        
+        // Per FTMS spec, Instantaneous Speed is always present immediately after Flags.
+        // Speed is UInt16 in 0.01 km/h.
+        if data.count >= offset + 2 {
+            let speedRaw = data.subdata(in: offset..<(offset + 2)).withUnsafeBytes { $0.load(as: UInt16.self) }
+            offset += 2
+            let kmh = Double(speedRaw) / 100.0
+            result.instantaneousSpeedMps = kmh / 3.6
+        } else {
+            return result
+        }
+        
         // Helper: read a little-endian UInt16 from current offset and advance cursor
         func readUInt16() -> UInt16? {
             guard data.count >= offset + 2 else { return nil }
@@ -104,46 +120,66 @@ enum SensorDataParser {
             return b0 | (b1 << 8) | (b2 << 16)
         }
 
-        // 0x0002: Instantaneous Speed present (UInt16, scale 0.01 m/s)
-        if (flags & 0x0002) != 0, let instSpeedRaw = readUInt16() {
-            // Convert raw to meters/second
-            result.instantaneousSpeedMps = Double(instSpeedRaw) / 100.0
-        }
-        // 0x0004: Average Speed present (UInt16, 0.01 m/s) — read and ignore
-        if (flags & 0x0004) != 0 { _ = readUInt16() }
-        // 0x0008: Instantaneous Cadence present (UInt16, 0.5 RPM units)
-        if (flags & 0x0008) != 0, let cadenceHalf = readUInt16() {
+        // FTMS Indoor Bike Data flag bits we care about (bit 0 is "More Data", ignored here).
+        let averageSpeedPresent: UInt16 = 1 << 1   // 0x0002
+        let instantaneousCadencePresent: UInt16 = 1 << 2 // 0x0004
+        let averageCadencePresent: UInt16 = 1 << 3  // 0x0008
+        let totalDistancePresent: UInt16 = 1 << 4   // 0x0010
+        let resistanceLevelPresent: UInt16 = 1 << 5 // 0x0020
+        let instantaneousPowerPresent: UInt16 = 1 << 6 // 0x0040
+        let averagePowerPresent: UInt16 = 1 << 7    // 0x0080
+        let totalEnergyPresent: UInt16 = 1 << 8     // 0x0100
+        let heartRatePresent: UInt16 = 1 << 9       // 0x0200
+        let metPresent: UInt16 = 1 << 10            // 0x0400
+        let elapsedTimePresent: UInt16 = 1 << 11    // 0x0800
+        let remainingTimePresent: UInt16 = 1 << 12  // 0x1000
+
+        // 0x0002: Average Speed present (UInt16, 0.01 km/h) — read and ignore
+        if (flags & averageSpeedPresent) != 0 { _ = readUInt16() }
+
+        // 0x0004: Instantaneous Cadence present (UInt16, 0.5 RPM units)
+        if (flags & instantaneousCadencePresent) != 0, let cadenceHalf = readUInt16() {
             // Convert 0.5 RPM units to RPM
             result.instantaneousCadenceRpm = Double(cadenceHalf) / 2.0
         }
-        // 0x0010: Average Cadence present — read and ignore
-        if (flags & 0x0010) != 0 { _ = readUInt16() }
-        // 0x0020: Total Distance present (UInt24, meters)
-        if (flags & 0x0020) != 0, let totalDistance = readUInt24() {
+
+        // 0x0008: Average Cadence present — read and ignore
+        if (flags & averageCadencePresent) != 0 { _ = readUInt16() }
+
+        // 0x0010: Total Distance present (UInt24, meters)
+        if (flags & totalDistancePresent) != 0, let totalDistance = readUInt24() {
             result.totalDistanceMeters = Double(totalDistance)
         }
-        // 0x0040: Resistance Level present — read and ignore
-        if (flags & 0x0040) != 0 { _ = readInt16() }
-        // 0x0080: Instantaneous Power present (Int16, watts)
-        if (flags & 0x0080) != 0, let instPower = readInt16() {
+
+        // 0x0020: Resistance Level present — read and ignore
+        if (flags & resistanceLevelPresent) != 0 { _ = readInt16() }
+
+        // 0x0040: Instantaneous Power present (Int16, watts)
+        if (flags & instantaneousPowerPresent) != 0, let instPower = readInt16() {
             result.instantaneousPowerWatts = Double(instPower)
         }
-        // 0x0100: Average Power present — read and ignore
-        if (flags & 0x0100) != 0 { _ = readInt16() }
-        // 0x0200: Total Energy present — read and ignore (units vary by vendor)
-        if (flags & 0x0200) != 0 { _ = readUInt16() }
-        // 0x0400: Energy Per Hour present — read and ignore
-        if (flags & 0x0400) != 0 { _ = readUInt16() }
-        // 0x0800: Energy Per Minute present — read and ignore
-        if (flags & 0x0800) != 0 { _ = readUInt8() }
-        // 0x1000: Heart Rate present — read and ignore to avoid conflicts with watch HR
-        if (flags & 0x1000) != 0 { _ = readUInt8() }
-        // 0x2000: MET present — read and ignore
-        if (flags & 0x2000) != 0 { _ = readUInt8() }
-        // 0x4000: Elapsed Time present — read and ignore (UInt16 seconds)
-        if (flags & 0x4000) != 0 { _ = readUInt16() }
-        // 0x8000: Remaining Time present — read and ignore (UInt16 seconds)
-        if (flags & 0x8000) != 0 { _ = readUInt16() }
+
+        // 0x0080: Average Power present — read and ignore
+        if (flags & averagePowerPresent) != 0 { _ = readInt16() }
+
+        // 0x0100: Expended Energy present (Total Energy UInt16, Energy/Hour UInt16, Energy/Minute UInt8) — read and ignore
+        if (flags & totalEnergyPresent) != 0 {
+            _ = readUInt16()
+            _ = readUInt16()
+            _ = readUInt8()
+        }
+
+        // 0x0200: Heart Rate present — read and ignore to avoid conflicts with watch HR
+        if (flags & heartRatePresent) != 0 { _ = readUInt8() }
+
+        // 0x0400: MET present — read and ignore
+        if (flags & metPresent) != 0 { _ = readUInt8() }
+
+        // 0x0800: Elapsed Time present — read and ignore (UInt16 seconds)
+        if (flags & elapsedTimePresent) != 0 { _ = readUInt16() }
+
+        // 0x1000: Remaining Time present — read and ignore (UInt16 seconds)
+        if (flags & remainingTimePresent) != 0 { _ = readUInt16() }
 
         return result
     }

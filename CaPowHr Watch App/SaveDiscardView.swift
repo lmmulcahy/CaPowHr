@@ -19,6 +19,7 @@ struct SaveDiscardView: View {
                     .cornerRadius(8)
             }
             .buttonStyle(PlainButtonStyle())
+            .disabled(workoutManager.isEndingCollection)
             
             Spacer(minLength: 12)
             
@@ -36,6 +37,7 @@ struct SaveDiscardView: View {
                     .cornerRadius(8)
             }
             .buttonStyle(PlainButtonStyle())
+            .disabled(workoutManager.isEndingCollection)
         }
         .frame(maxHeight: .infinity, alignment: .top)
         .padding(.vertical, 6)

@@ -87,6 +87,7 @@ final class BluetoothManager: NSObject {
         allowAutoReconnect = true
         isScanning = true
         print("Starting Bluetooth scan for cycling services...")
+        BluetoothLogManager.shared.logScanStart()
         // Phase 1: broad scan for any peripheral (no service filter)
         centralManager.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
         // After a short window, narrow to cycling services to reduce noise
@@ -108,6 +109,7 @@ final class BluetoothManager: NSObject {
         if !isScanning { return }
         isScanning = false
         print("Stopping Bluetooth scan...")
+        BluetoothLogManager.shared.logScanStop()
         centralManager.stopScan()
     }
 
@@ -132,6 +134,7 @@ extension BluetoothManager: CBCentralManagerDelegate {
         print("Discovered peripheral: \(peripheral.name ?? "Unknown")")
         print("Advertisement data: \(advertisementData)")
         print("RSSI: \(RSSI)")
+        BluetoothLogManager.shared.logDiscovered(peripheral: peripheral, advertisementData: advertisementData, rssi: RSSI)
 
         // Prefer peripherals that explicitly advertise cycling-related services
         if let serviceUUIDs = advertisementData["kCBAdvDataServiceUUIDs"] as? [CBUUID] {
@@ -157,6 +160,7 @@ extension BluetoothManager: CBCentralManagerDelegate {
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         print("Connected to peripheral: \(peripheral.name ?? "Unknown")")
+        BluetoothLogManager.shared.logConnect(peripheral: peripheral)
         // Transition from connecting → connected
         if let idx = connectingPeripherals.firstIndex(of: peripheral) { connectingPeripherals.remove(at: idx) }
         if !connectedPeripherals.contains(peripheral) { connectedPeripherals.append(peripheral) }
@@ -180,6 +184,7 @@ extension BluetoothManager: CBCentralManagerDelegate {
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         print("Disconnected from peripheral: \(peripheral.name ?? "Unknown")")
+        BluetoothLogManager.shared.logDisconnect(peripheral: peripheral, error: error)
         // Clean up state regardless of disconnect cause
         if let idx = connectedPeripherals.firstIndex(of: peripheral) { connectedPeripherals.remove(at: idx) }
         if let idx = connectingPeripherals.firstIndex(of: peripheral) { connectingPeripherals.remove(at: idx) }
@@ -197,6 +202,7 @@ extension BluetoothManager: CBPeripheralDelegate {
         guard let services = peripheral.services else { return }
         for service in services {
             print("Discovered service: \(service.uuid)")
+            BluetoothLogManager.shared.logDidDiscoverService(service, peripheral: peripheral)
             // Ask CoreBluetooth for all characteristics; we will filter by UUID
             peripheral.discoverCharacteristics(nil, for: service)
         }
@@ -206,11 +212,13 @@ extension BluetoothManager: CBPeripheralDelegate {
         guard let characteristics = service.characteristics else { return }
         for characteristic in characteristics {
             print("Discovered characteristic: \(characteristic.uuid)")
+            BluetoothLogManager.shared.logDidDiscoverCharacteristic(characteristic, service: service, peripheral: peripheral)
             if characteristic.uuid == powerMeasurementCharacteristicUUID ||
                characteristic.uuid == cscMeasurementCharacteristicUUID ||
                characteristic.uuid == ftmsDataCharacteristicUUID {
                 // Subscribe to notifications for streaming sensor data
                 peripheral.setNotifyValue(true, for: characteristic)
+                BluetoothLogManager.shared.logNotifySet(true, characteristic: characteristic, peripheral: peripheral)
             }
         }
     }
@@ -218,6 +226,7 @@ extension BluetoothManager: CBPeripheralDelegate {
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         guard let data = characteristic.value else { return }
         print("Received data from characteristic: \(characteristic.uuid)")
+        BluetoothLogManager.shared.logRX(data, characteristic: characteristic, peripheral: peripheral, error: error)
         if characteristic.uuid == powerMeasurementCharacteristicUUID {
             if let watts = SensorDataParser.parsePowerMeasurement(data) {
                 delegate?.btDidUpdatePower(watts: watts)
