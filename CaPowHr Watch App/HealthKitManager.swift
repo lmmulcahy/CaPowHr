@@ -16,6 +16,7 @@ final class HealthKitManager: NSObject {
     // MARK: - Write throttling (avoid spamming HealthKit at BLE notification rate)
     private var lastPowerWriteAt: Date?
     private var lastCadenceWriteAt: Date?
+    private var lastHeartRateWriteAt: Date?
     private let minWriteInterval: TimeInterval = 1.0
 
     // MARK: - Authorization
@@ -171,6 +172,18 @@ final class HealthKitManager: NSObject {
         let sample = HKQuantitySample(type: type, quantity: quantity, start: start, end: end)
         workoutBuilder?.add([sample]) { _, error in
             if let error = error { print("Error adding energy sample: \(error.localizedDescription)") }
+        }
+    }
+
+    func addHeartRateSample(_ bpm: Double) {
+        let now = Date()
+        if let last = lastHeartRateWriteAt, now.timeIntervalSince(last) < minWriteInterval { return }
+        lastHeartRateWriteAt = now
+        guard let type = HKQuantityType.quantityType(forIdentifier: .heartRate) else { return }
+        let quantity = HKQuantity(unit: HKUnit(from: "count/min"), doubleValue: bpm)
+        let sample = HKQuantitySample(type: type, quantity: quantity, start: now, end: now)
+        workoutBuilder?.add([sample]) { _, error in
+            if let error = error { print("Error adding heart rate sample: \(error.localizedDescription)") }
         }
     }
 }

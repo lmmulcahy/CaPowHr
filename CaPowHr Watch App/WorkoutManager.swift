@@ -49,6 +49,8 @@ class WorkoutManager: NSObject, ObservableObject {
     private var lastDistanceMetersSaved: Double = 0
     private var hasSeenFTMSEnergy: Bool = false
     private var lastFTMSTotalEnergyKcal: Double?
+    private var prefersBikeHeartRate: Bool = false
+    private var lastBikeHeartRateAt: Date?
     
     // MARK: - Bluetooth Service and Characteristic UUIDs
     // Standard Cycling Services
@@ -141,6 +143,12 @@ class WorkoutManager: NSObject, ObservableObject {
         hasSeenFTMSEnergy = false
     }
 
+    private func resetHeartRateTracking() {
+        prefersBikeHeartRate = false
+        lastBikeHeartRateAt = nil
+        DispatchQueue.main.async { self.heartRate = 0 }
+    }
+
     func beginDisplayOnlyWorkoutIfPending() {
         guard pendingDisplayOnlyStart else { return }
         pendingDisplayOnlyStart = false
@@ -175,6 +183,7 @@ class WorkoutManager: NSObject, ObservableObject {
                 self.stopScanning()
                 self.resetDistanceTracking()
                 self.resetEnergyTracking()
+                self.resetHeartRateTracking()
                 self.isDisplayOnlyMode = false
             }
             bleLog.endSession(reason: "display_only_workout_stop")
@@ -190,6 +199,7 @@ class WorkoutManager: NSObject, ObservableObject {
             self.stopScanning()
             self.resetDistanceTracking()
             self.resetEnergyTracking()
+            self.resetHeartRateTracking()
             self.isEndingCollection = true
         }
 
@@ -250,6 +260,7 @@ class WorkoutManager: NSObject, ObservableObject {
             self.distanceMeters = 0
             self.cyclingSpeedMps = 0
             self.resetEnergyTracking()
+            self.resetHeartRateTracking()
             self.lastDistanceUpdateTime = nil
             self.lastDistanceMetersSaved = 0
         }
@@ -410,6 +421,21 @@ extension WorkoutManager: BluetoothManagerDelegate {
     }
 
     func btDidUpdateFTMS(_ ftms: FTMSData) {
+        // Prefer bike-reported HR when present and non-zero.
+        if let hr = ftms.heartRateBpm, hr > 0 {
+            let bpm = Double(hr)
+            prefersBikeHeartRate = true
+            lastBikeHeartRateAt = Date()
+            DispatchQueue.main.async { self.heartRate = bpm }
+            hkManager.addHeartRateSample(bpm)
+        } else if prefersBikeHeartRate, let last = lastBikeHeartRateAt {
+            // If bike HR disappears for a while, allow watch HR to take over again.
+            // (We keep the watch HR query running, we just stop ignoring it.)
+            if Date().timeIntervalSince(last) > 10 {
+                prefersBikeHeartRate = false
+            }
+        }
+
         // Prefer device-reported expended energy (kcal) when present.
         if let total = ftms.totalEnergyKcal {
             let totalKcal = Double(total)
@@ -433,6 +459,8 @@ extension WorkoutManager: BluetoothManagerDelegate {
 // MARK: - HealthKitManagerDelegate
 extension WorkoutManager: HealthKitManagerDelegate {
     func hkDidUpdateHeartRate(_ bpm: Double) {
+        // Only use watch HR if we are not actively receiving bike HR.
+        if prefersBikeHeartRate { return }
         DispatchQueue.main.async { self.heartRate = bpm }
     }
 }
