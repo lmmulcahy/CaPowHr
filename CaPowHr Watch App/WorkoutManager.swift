@@ -47,6 +47,8 @@ class WorkoutManager: NSObject, ObservableObject {
     private var lastEnergyUpdateTime: Date?
     private var lastDistanceUpdateTime: Date?
     private var lastDistanceMetersSaved: Double = 0
+    private var hasSeenFTMSEnergy: Bool = false
+    private var lastFTMSTotalEnergyKcal: Double?
     
     // MARK: - Bluetooth Service and Characteristic UUIDs
     // Standard Cycling Services
@@ -133,6 +135,12 @@ class WorkoutManager: NSObject, ObservableObject {
         lastDistanceMetersSaved = 0
     }
 
+    private func resetEnergyTracking() {
+        lastEnergyUpdateTime = nil
+        lastFTMSTotalEnergyKcal = nil
+        hasSeenFTMSEnergy = false
+    }
+
     func beginDisplayOnlyWorkoutIfPending() {
         guard pendingDisplayOnlyStart else { return }
         pendingDisplayOnlyStart = false
@@ -166,6 +174,7 @@ class WorkoutManager: NSObject, ObservableObject {
                 self.hkManager.stopHeartRateQuery()
                 self.stopScanning()
                 self.resetDistanceTracking()
+                self.resetEnergyTracking()
                 self.isDisplayOnlyMode = false
             }
             bleLog.endSession(reason: "display_only_workout_stop")
@@ -180,6 +189,7 @@ class WorkoutManager: NSObject, ObservableObject {
             self.hkManager.stopHeartRateQuery()
             self.stopScanning()
             self.resetDistanceTracking()
+            self.resetEnergyTracking()
             self.isEndingCollection = true
         }
 
@@ -239,7 +249,7 @@ class WorkoutManager: NSObject, ObservableObject {
             self.workoutDuration = 0
             self.distanceMeters = 0
             self.cyclingSpeedMps = 0
-            self.lastEnergyUpdateTime = nil
+            self.resetEnergyTracking()
             self.lastDistanceUpdateTime = nil
             self.lastDistanceMetersSaved = 0
         }
@@ -350,6 +360,22 @@ extension WorkoutManager: BluetoothManagerDelegate {
     func btDidUpdatePower(watts: Double) {
         DispatchQueue.main.async { self.cyclingPower = watts }
         hkManager.addPowerSample(watts)
+
+        // Fallback energy estimation from mechanical power if the bike doesn't provide FTMS expended energy.
+        // We only use this until we see FTMS totalEnergyKcal at least once, to avoid double-counting.
+        guard !hasSeenFTMSEnergy else { return }
+        let now = Date()
+        if let last = lastEnergyUpdateTime {
+            let dt = now.timeIntervalSince(last)
+            if dt > 0 {
+                let joules = watts * dt
+                let kcal = joules / 4184.0
+                if kcal > 0 {
+                    hkManager.addEnergyBurnedSample(kcal, start: last, end: now)
+                }
+            }
+        }
+        lastEnergyUpdateTime = now
     }
     
     func btDidUpdateCadence(rpm: Double) {
@@ -381,6 +407,26 @@ extension WorkoutManager: BluetoothManagerDelegate {
     
     func btDidUpdateConnectedDevices(_ names: [String]) {
         DispatchQueue.main.async { self.connectedDevices = names }
+    }
+
+    func btDidUpdateFTMS(_ ftms: FTMSData) {
+        // Prefer device-reported expended energy (kcal) when present.
+        if let total = ftms.totalEnergyKcal {
+            let totalKcal = Double(total)
+            let now = Date()
+            hasSeenFTMSEnergy = true
+
+            if let lastTotal = lastFTMSTotalEnergyKcal, let lastTime = lastEnergyUpdateTime {
+                let delta = totalKcal - lastTotal
+                // Guard against device reset/wrap or non-monotonic streams.
+                if delta > 0 {
+                    hkManager.addEnergyBurnedSample(delta, start: lastTime, end: now)
+                }
+            }
+
+            lastFTMSTotalEnergyKcal = totalKcal
+            lastEnergyUpdateTime = now
+        }
     }
 }
 

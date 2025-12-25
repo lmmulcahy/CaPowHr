@@ -13,6 +13,11 @@ final class HealthKitManager: NSObject {
     private var workoutBuilder: HKWorkoutBuilder?
     private var heartRateQuery: HKAnchoredObjectQuery?
 
+    // MARK: - Write throttling (avoid spamming HealthKit at BLE notification rate)
+    private var lastPowerWriteAt: Date?
+    private var lastCadenceWriteAt: Date?
+    private let minWriteInterval: TimeInterval = 1.0
+
     // MARK: - Authorization
     func requestAuthorization() {
         guard HKHealthStore.isHealthDataAvailable() else {
@@ -128,18 +133,24 @@ final class HealthKitManager: NSObject {
 
     // MARK: - Sample writes
     func addPowerSample(_ power: Double) {
+        let now = Date()
+        if let last = lastPowerWriteAt, now.timeIntervalSince(last) < minWriteInterval { return }
+        lastPowerWriteAt = now
         guard let type = HKQuantityType.quantityType(forIdentifier: .cyclingPower) else { return }
         let quantity = HKQuantity(unit: HKUnit.watt(), doubleValue: power)
-        let sample = HKQuantitySample(type: type, quantity: quantity, start: Date(), end: Date())
+        let sample = HKQuantitySample(type: type, quantity: quantity, start: now, end: now)
         workoutBuilder?.add([sample]) { success, error in
             if let error = error { print("Error adding power sample: \(error.localizedDescription)") }
         }
     }
 
     func addCadenceSample(_ cadenceRpm: Double) {
+        let now = Date()
+        if let last = lastCadenceWriteAt, now.timeIntervalSince(last) < minWriteInterval { return }
+        lastCadenceWriteAt = now
         guard let type = HKQuantityType.quantityType(forIdentifier: .cyclingCadence) else { return }
         let quantity = HKQuantity(unit: HKUnit.count().unitDivided(by: HKUnit.minute()), doubleValue: cadenceRpm)
-        let sample = HKQuantitySample(type: type, quantity: quantity, start: Date(), end: Date())
+        let sample = HKQuantitySample(type: type, quantity: quantity, start: now, end: now)
         workoutBuilder?.add([sample]) { _, error in
             if let error = error { print("Error adding cadence sample: \(error.localizedDescription)") }
         }

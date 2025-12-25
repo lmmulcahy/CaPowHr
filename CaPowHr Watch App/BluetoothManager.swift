@@ -35,6 +35,8 @@ protocol BluetoothManagerDelegate: AnyObject {
     func btDidUpdateSpeed(mps: Double)
     /// Parsed total distance in meters (cumulative).
     func btDidUpdateTotalDistance(meters: Double)
+    /// Full parsed FTMS Indoor Bike Data packet (includes fields we may not display).
+    func btDidUpdateFTMS(_ ftms: FTMSData)
     /// Emitted whenever the set of connected devices changes.
     func btDidUpdateConnectedDevices(_ names: [String])
 }
@@ -254,6 +256,7 @@ extension BluetoothManager: CBPeripheralDelegate {
             if let rpm = ftms.instantaneousCadenceRpm { delegate?.btDidUpdateCadence(rpm: rpm) }
             if let mps = ftms.instantaneousSpeedMps { delegate?.btDidUpdateSpeed(mps: mps) }
             if let meters = ftms.totalDistanceMeters { delegate?.btDidUpdateTotalDistance(meters: meters) }
+            delegate?.btDidUpdateFTMS(ftms)
         }
     }
     
