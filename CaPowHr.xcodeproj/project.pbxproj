@@ -57,6 +57,7 @@
 		19B1A0E02E78FB0E003B71A0 /* CaPowHr Watch AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "CaPowHr Watch AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		19B1A0F92E78FB0E003B71A0 /* HealthKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = HealthKit.framework; path = System/Library/Frameworks/HealthKit.framework; sourceTree = SDKROOT; };
 		19B1A0FA2E78FB0E003B71A0 /* CoreBluetooth.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreBluetooth.framework; path = System/Library/Frameworks/CoreBluetooth.framework; sourceTree = SDKROOT; };
+		19C7A5C92FB9A01100A1B2C3 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Secrets.xcconfig; path = Config/Secrets.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -67,6 +68,13 @@
 			);
 			target = 19B1A0C02E78FB0D003B71A0 /* CaPowHr */;
 		};
+		19C7A5CA2FB9A02200A1B2C4 /* Exceptions for "CaPowHr Watch App" folder in "CaPowHr Watch App" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 19B1A0C62E78FB0D003B71A0 /* CaPowHr Watch App */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -74,6 +82,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				19A9C8112EA18FA700D1146D /* Exceptions for "CaPowHr Watch App" folder in "CaPowHr" target */,
+				19C7A5CA2FB9A02200A1B2C4 /* Exceptions for "CaPowHr Watch App" folder in "CaPowHr Watch App" target */,
 			);
 			path = "CaPowHr Watch App";
 			sourceTree = "<group>";
@@ -120,6 +129,7 @@
 		19B1A0BA2E78FB0D003B71A0 = {
 			isa = PBXGroup;
 			children = (
+				19C7A5C92FB9A01100A1B2C3 /* Secrets.xcconfig */,
 				19B1A0CB2E78FB0D003B71A0 /* CaPowHr Watch App */,
 				19B1A0D92E78FB0E003B71A0 /* CaPowHr Watch AppTests */,
 				19B1A0E32E78FB0E003B71A0 /* CaPowHr Watch AppUITests */,
@@ -478,6 +488,7 @@
 		};
 		19B1A0EB2E78FB0E003B71A0 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 19C7A5C92FB9A01100A1B2C3 /* Secrets.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -488,6 +499,7 @@
 				DEVELOPMENT_TEAM = UX8Q7W992R;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "CaPowHr Watch App/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = CaPowHr;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "CaPowHr uses Bluetooth to connect to cycling power meters and cadence sensors for accurate workout tracking.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "CaPowHr reads your heart rate during your ride so it can be displayed to you and saved in your workout.";
@@ -499,7 +511,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-framework",
@@ -520,6 +532,7 @@
 		};
 		19B1A0EC2E78FB0E003B71A0 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 19C7A5C92FB9A01100A1B2C3 /* Secrets.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -530,6 +543,7 @@
 				DEVELOPMENT_TEAM = UX8Q7W992R;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "CaPowHr Watch App/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = CaPowHr;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "CaPowHr uses Bluetooth to connect to cycling power meters and cadence sensors for accurate workout tracking.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Allow CaPowHr to read your heart rate for workouts.";
@@ -541,7 +555,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-framework",
@@ -569,7 +583,7 @@
 				CURRENT_PROJECT_VERSION = 0;
 				DEVELOPMENT_TEAM = UX8Q7W992R;
 				INFOPLIST_KEY_CFBundleDisplayName = CaPowHr;
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.MulcahyHeavyIndustries.CaPowHr;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -585,7 +599,7 @@
 				CURRENT_PROJECT_VERSION = 0;
 				DEVELOPMENT_TEAM = UX8Q7W992R;
 				INFOPLIST_KEY_CFBundleDisplayName = CaPowHr;
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.MulcahyHeavyIndustries.CaPowHr;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;

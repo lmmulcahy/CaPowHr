@@ -1,3 +1,26 @@
+# Local token injection (uncommitted)
+If you want the watch to upload logs directly as GitHub issues without entering a token on-device, put your token into the **uncommitted** file:
+
+- `Config/Secrets.xcconfig`
+
+This project is configured so the **CaPowHr Watch App** target uses `Config/Secrets.xcconfig` as its base build configuration, and `Info.plist` key `CaPowHrGitHubToken` is populated from `$(CAPOWHR_GITHUB_TOKEN)`.
+
+(`Config/Secrets.xcconfig` is `.gitignore`’d.)
+
+# BLE debugging / protocol capture
+
+When troubleshooting cadence/power parsing for different bike models, CaPowHr can record all BLE communication during a session (scan/discovery/connect/notify + raw characteristic RX bytes).
+
+### How to capture a log
+
+- Start a workout (or tap **Connect Sensors** on the start screen).
+- Ride until you reproduce the issue.
+- End the workout (save or discard) or disconnect sensors.
+
+### How to export the log
+
+- In the app, tap **Upload BLE log to GitHub** (requires token injection above).
+
 # CaPowHr - watchOS Cycling Workout App
 
 A standalone watchOS app that connects to Bluetooth cycling sensors (Power and Cadence) and uses the Apple Watch's internal heart rate sensor to record indoor cycling workouts. All data is saved to Apple Health as a single workout.

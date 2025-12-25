@@ -2,6 +2,7 @@ import SwiftUI
 
 struct StartView: View {
     @ObservedObject var workoutManager: WorkoutManager
+    @ObservedObject private var bleLog = BluetoothLogManager.shared
     
     var body: some View {
         VStack(spacing: 8) {
@@ -48,6 +49,13 @@ struct StartView: View {
             }
 
             Spacer(minLength: 6)
+
+            NavigationLink {
+                GitHubUploadView()
+            } label: {
+                Text("Upload BLE log to GitHub")
+                    .font(.footnote)
+            }
 
             Button(action: {
                 workoutManager.startWorkout()
