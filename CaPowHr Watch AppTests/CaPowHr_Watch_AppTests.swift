@@ -40,6 +40,8 @@ struct CaPowHr_Watch_AppTests {
         let payload = dataFromHex("74038804260013000015001400000000000000")
         let parsed = SensorDataParser.parseFTMS(payload)
 
+        #expect(parsed.flags == 0x0374)
+        #expect(parsed.instantaneousSpeedKph == 11.60)
         #expect(parsed.instantaneousPowerWatts == 20)
         #expect(parsed.instantaneousCadenceRpm == 19)
         #expect(parsed.totalDistanceMeters == 19)
@@ -54,6 +56,8 @@ struct CaPowHr_Watch_AppTests {
         let payload = dataFromHex("fe098f044a002800030000000026001000000000004400010300")
         let parsed = SensorDataParser.parseFTMS(payload)
 
+        #expect(parsed.flags == 0x09FE)
+        #expect(parsed.instantaneousSpeedKph == 11.67)
         #expect(parsed.instantaneousPowerWatts == 16)
         #expect(parsed.instantaneousCadenceRpm == 20)
         #expect(parsed.totalDistanceMeters == 0)
