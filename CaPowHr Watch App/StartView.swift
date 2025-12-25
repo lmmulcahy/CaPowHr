@@ -50,11 +50,13 @@ struct StartView: View {
 
             Spacer(minLength: 6)
 
-            NavigationLink {
-                GitHubUploadView()
-            } label: {
-                Text("Upload BLE log to GitHub")
-                    .font(.footnote)
+            if FeatureFlags.showBLELogUpload {
+                NavigationLink {
+                    GitHubUploadView()
+                } label: {
+                    Text("Upload BLE log to GitHub")
+                        .font(.footnote)
+                }
             }
 
             Button(action: {
