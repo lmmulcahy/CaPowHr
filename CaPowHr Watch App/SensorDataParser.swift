@@ -58,15 +58,12 @@ struct FTMSData {
 enum SensorDataParser {
     /// Parse a Cycling Power Measurement payload (0x2A63) for instantaneous power.
     /// Per spec, the first two bytes are flags and the next two bytes are instantaneous power (Int16, watts).
-    /// Some devices may send a truncated payload (power only); we keep a fallback for that case.
     static func parsePowerMeasurement(_ data: Data) -> Double? {
-        if data.count >= 4 {
-            let instPower = data.subdata(in: 2..<4).withUnsafeBytes { $0.load(as: Int16.self) }
-            return Double(instPower)
-        }
-        guard data.count >= 2 else { return nil }
-        let watts = data.subdata(in: 0..<2).withUnsafeBytes { $0.load(as: Int16.self) }
-        return Double(watts)
+        // Minimum valid length is 4 bytes: Flags (2) + Instantaneous Power (2).
+        // If data is truncated (< 4), it may contain flags only; treating those bytes as power is incorrect.
+        guard data.count >= 4 else { return nil }
+        let instPower = data.subdata(in: 2..<4).withUnsafeBytes { $0.load(as: Int16.self) }
+        return Double(instPower)
     }
 
     /// Compute cadence (RPM) from CSC crank revolution data with wrap-safe arithmetic.
@@ -88,6 +85,55 @@ enum SensorDataParser {
         guard ticks > 0 else { return nil }
         let seconds = Double(ticks) / 1024.0
         return (Double(revDelta) / seconds) * 60.0
+    }
+
+    /// Parse Cycling Speed and Cadence (CSC) Measurement (0x2A5B).
+    /// - Returns: Cumulative values (wheel/crank) that you can use to compute speed/cadence deltas.
+    ///   Crank values can be passed to `computeCadenceRPM(previousCount:previousTime:currentCount:currentTime:)`.
+    ///
+    /// Packet format (per spec):
+    /// - Flags (UInt8)
+    /// - If flags bit 0 set: Cumulative Wheel Revolutions (UInt32) + Last Wheel Event Time (UInt16)
+    /// - If flags bit 1 set: Cumulative Crank Revolutions (UInt16) + Last Crank Event Time (UInt16)
+    static func parseCSC(_ data: Data) -> (wheelRev: UInt32?, wheelTime: UInt16?, crankRev: UInt16?, crankTime: UInt16?) {
+        var cursor = 0
+
+        func readUInt8() -> UInt8? {
+            guard data.count >= cursor + 1 else { return nil }
+            defer { cursor += 1 }
+            return data[cursor]
+        }
+        func readUInt16LE() -> UInt16? {
+            guard data.count >= cursor + 2 else { return nil }
+            defer { cursor += 2 }
+            return data.subdata(in: cursor..<(cursor + 2)).withUnsafeBytes { $0.load(as: UInt16.self) }
+        }
+        func readUInt32LE() -> UInt32? {
+            guard data.count >= cursor + 4 else { return nil }
+            defer { cursor += 4 }
+            return data.subdata(in: cursor..<(cursor + 4)).withUnsafeBytes { $0.load(as: UInt32.self) }
+        }
+
+        guard let flags = readUInt8() else { return (nil, nil, nil, nil) }
+
+        var wheelRev: UInt32?
+        var wheelTime: UInt16?
+        var crankRev: UInt16?
+        var crankTime: UInt16?
+
+        // Bit 0: Wheel Revolution Data Present
+        if (flags & 0x01) != 0 {
+            wheelRev = readUInt32LE()
+            wheelTime = readUInt16LE()
+        }
+
+        // Bit 1: Crank Revolution Data Present
+        if (flags & 0x02) != 0 {
+            crankRev = readUInt16LE()
+            crankTime = readUInt16LE()
+        }
+
+        return (wheelRev, wheelTime, crankRev, crankTime)
     }
 
     /// Parse FTMS Indoor Bike Data (0x2AD2) and return selected fields.

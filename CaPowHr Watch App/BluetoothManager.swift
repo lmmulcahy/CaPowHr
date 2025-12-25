@@ -234,17 +234,9 @@ extension BluetoothManager: CBPeripheralDelegate {
                 delegate?.btDidUpdatePower(watts: watts)
             }
         } else if characteristic.uuid == cscMeasurementCharacteristicUUID {
-            // Parse minimal CSC crank data (flags + count/time) then compute RPM
-            guard data.count >= 1 else { return }
-            let flags = data[0]
-            var offset = 1
-            if (flags & 0x01) != 0 { // wheel present, skip 6 bytes
-                guard data.count >= offset + 6 else { return }
-                offset += 6
-            }
-            guard (flags & 0x02) != 0, data.count >= offset + 4 else { return }
-            let count = data.subdata(in: offset..<(offset + 2)).withUnsafeBytes { $0.load(as: UInt16.self) }
-            let time = data.subdata(in: (offset + 2)..<(offset + 4)).withUnsafeBytes { $0.load(as: UInt16.self) }
+            // Parse CSC and compute crank cadence (RPM).
+            let csc = SensorDataParser.parseCSC(data)
+            guard let count = csc.crankRev, let time = csc.crankTime else { return }
             if let rpm = SensorDataParser.computeCadenceRPM(previousCount: cscLastCrankCount, previousTime: cscLastCrankTime, currentCount: count, currentTime: time) {
                 delegate?.btDidUpdateCadence(rpm: rpm)
             }
