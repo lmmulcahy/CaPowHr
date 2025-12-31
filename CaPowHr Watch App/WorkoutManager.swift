@@ -47,6 +47,8 @@ class WorkoutManager: NSObject, ObservableObject {
     private var lastEnergyUpdateTime: Date?
     private var lastDistanceUpdateTime: Date?
     private var lastDistanceMetersSaved: Double = 0
+    private var hasSeenFTMSTotalDistance: Bool = false
+    private var distanceEstimator = DistanceEstimator()
     private var hasSeenFTMSEnergy: Bool = false
     private var lastFTMSTotalEnergyKcal: Double?
     private var prefersBikeHeartRate: Bool = false
@@ -135,6 +137,8 @@ class WorkoutManager: NSObject, ObservableObject {
         cyclingSpeedMps = 0
         lastDistanceUpdateTime = nil
         lastDistanceMetersSaved = 0
+        hasSeenFTMSTotalDistance = false
+        distanceEstimator.reset()
     }
 
     private func resetEnergyTracking() {
@@ -396,9 +400,21 @@ extension WorkoutManager: BluetoothManagerDelegate {
     
     func btDidUpdateSpeed(mps: Double) {
         DispatchQueue.main.async { self.cyclingSpeedMps = mps }
+
+        // If the bike provides cumulative distance, prefer that.
+        guard !hasSeenFTMSTotalDistance else { return }
+
+        let now = Date()
+        guard let sample = distanceEstimator.update(speedMps: mps, now: now) else { return }
+
+        // Update the UI-facing cumulative distance and write HealthKit delta samples.
+        DispatchQueue.main.async { self.distanceMeters += sample.deltaMeters }
+        hkManager.addDistanceSample(sample.deltaMeters, start: sample.start, end: sample.end)
     }
     
     func btDidUpdateTotalDistance(meters: Double) {
+        hasSeenFTMSTotalDistance = true
+        distanceEstimator.reset()
         DispatchQueue.main.async { self.distanceMeters = meters }
         let now = Date()
         if let lastTime = lastDistanceUpdateTime {

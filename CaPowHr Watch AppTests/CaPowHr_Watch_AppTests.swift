@@ -99,4 +99,40 @@ struct CaPowHr_Watch_AppTests {
         }
     }
 
+    @Test func distanceEstimator_integratesSpeedOverTime() async throws {
+        var est = DistanceEstimator()
+        let t0 = Date(timeIntervalSince1970: 0)
+        let t1 = Date(timeIntervalSince1970: 1)
+        let t2 = Date(timeIntervalSince1970: 2)
+
+        // First update has no prior point -> no delta.
+        #expect(est.update(speedMps: 10, now: t0) == nil)
+
+        // 10 m/s for 1 second -> 10 meters.
+        let s1 = est.update(speedMps: 10, now: t1)
+        #expect(s1?.deltaMeters == 10)
+        #expect(s1?.start == t0)
+        #expect(s1?.end == t1)
+
+        // 8 m/s for 1 second -> 8 meters.
+        let s2 = est.update(speedMps: 8, now: t2)
+        #expect(s2?.deltaMeters == 8)
+        #expect(s2?.start == t1)
+        #expect(s2?.end == t2)
+    }
+
+    @Test func distanceEstimator_skipsVeryDelayedUpdates() async throws {
+        var est = DistanceEstimator()
+        let t0 = Date(timeIntervalSince1970: 0)
+        let t10 = Date(timeIntervalSince1970: 10)
+        let t11 = Date(timeIntervalSince1970: 11)
+
+        #expect(est.update(speedMps: 10, now: t0) == nil)
+        // 10s gap is too large (dt > 5) -> skip to avoid a huge jump.
+        #expect(est.update(speedMps: 10, now: t10) == nil)
+        // Now 1s later it should resume normally.
+        let s = est.update(speedMps: 10, now: t11)
+        #expect(s?.deltaMeters == 10)
+    }
+
 }
