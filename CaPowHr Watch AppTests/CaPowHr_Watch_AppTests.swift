@@ -63,4 +63,40 @@ struct CaPowHr_Watch_AppTests {
         #expect(parsed.totalDistanceMeters == 0)
     }
 
+    @Test func ftmsIndoorBikeData_parsesICBikeLogFrames_flags0244() async throws {
+        // From provided log: FTMS Indoor Bike Data (2AD2) frames like:
+        // 44 02 [speed u16 LE] [cadence u16 LE] [power s16 LE] [hr u8]
+        // flags 0x0244 => instantaneous cadence (bit2), instantaneous power (bit6), heart rate (bit9)
+
+        do {
+            let payload = dataFromHex("4402240e7c00d10000")
+            let parsed = SensorDataParser.parseFTMS(payload)
+            #expect(parsed.flags == 0x0244)
+            #expect(parsed.instantaneousSpeedKph == 36.20) // 0x0E24 / 100
+            #expect(parsed.instantaneousCadenceRpm == 62)   // 0x007C / 2
+            #expect(parsed.instantaneousPowerWatts == 209)  // 0x00D1
+            #expect(parsed.heartRateBpm == 0)
+        }
+
+        do {
+            let payload = dataFromHex("4402de0d7c00cc0000")
+            let parsed = SensorDataParser.parseFTMS(payload)
+            #expect(parsed.flags == 0x0244)
+            #expect(parsed.instantaneousSpeedKph == 35.50) // 0x0DDE / 100
+            #expect(parsed.instantaneousCadenceRpm == 62)  // 0x007C / 2
+            #expect(parsed.instantaneousPowerWatts == 204) // 0x00CC
+            #expect(parsed.heartRateBpm == 0)
+        }
+
+        do {
+            let payload = dataFromHex("4402b40f9e001d0100")
+            let parsed = SensorDataParser.parseFTMS(payload)
+            #expect(parsed.flags == 0x0244)
+            #expect(parsed.instantaneousSpeedKph == 40.20) // 0x0FB4 / 100
+            #expect(parsed.instantaneousCadenceRpm == 79)  // 0x009E / 2
+            #expect(parsed.instantaneousPowerWatts == 285) // 0x011D
+            #expect(parsed.heartRateBpm == 0)
+        }
+    }
+
 }
