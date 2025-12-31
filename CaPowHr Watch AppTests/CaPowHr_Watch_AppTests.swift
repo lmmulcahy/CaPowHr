@@ -135,4 +135,45 @@ struct CaPowHr_Watch_AppTests {
         #expect(s?.deltaMeters == 10)
     }
 
+    @Test func cscDistanceEstimator_calibratesCircumferenceFromFTMSSpeed_andComputesDistance() async throws {
+        // CSC samples from provided log (2A5B):
+        // 03 c0 2e 01 00 ca b0 48 3b be 8f
+        // 03 c5 2e 01 00 e8 b4 49 3b 8d 93
+        //
+        // Flags=0x03 => wheel + crank present.
+        // Wheel rev deltas: 0x12EC0 -> 0x12EC5 = +5
+        // Wheel time deltas: 0xB0CA -> 0xB4E8 = 1054 ticks = 1.029296875 s
+        //
+        // FTMS speed near this period (from log): 36.20 kph = 10.055555... m/s
+        let csc1 = dataFromHex("03c02e0100cab0483bbe8f")
+        let csc2 = dataFromHex("03c52e0100e8b4493b8d93")
+        let p1 = SensorDataParser.parseCSC(csc1)
+        let p2 = SensorDataParser.parseCSC(csc2)
+        #expect(p1.wheelRev != nil)
+        #expect(p2.wheelRev != nil)
+
+        var est = CSCDistanceEstimator()
+        // Prime with first sample (no delta yet).
+        _ = est.update(wheelRev: p1.wheelRev!, wheelTime: p1.wheelTime!, speedMpsForCalibration: nil)
+
+        let speedMps = 36.20 / 3.6
+        let delta = est.update(wheelRev: p2.wheelRev!, wheelTime: p2.wheelTime!, speedMpsForCalibration: speedMps)
+
+        // Circumference should land around ~2.07m for this bike/log.
+        if let c = est.circumferenceMetersEstimate {
+            #expect(c > 1.5)
+            #expect(c < 3.0)
+        } else {
+            #expect(false, "Expected circumference to be calibrated")
+        }
+
+        // Delta distance should roughly match speed * dt ~ 10.35m (allow small tolerance due to smoothing/clamp).
+        if let d = delta {
+            #expect(d > 8.0)
+            #expect(d < 13.0)
+        } else {
+            #expect(false, "Expected a delta distance once calibrated")
+        }
+    }
+
 }

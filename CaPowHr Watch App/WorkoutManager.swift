@@ -49,6 +49,9 @@ class WorkoutManager: NSObject, ObservableObject {
     private var lastDistanceMetersSaved: Double = 0
     private var hasSeenFTMSTotalDistance: Bool = false
     private var distanceEstimator = DistanceEstimator()
+    private var cscDistanceEstimator = CSCDistanceEstimator()
+    private var hasSeenCSCDistance: Bool = false
+    private var lastSpeedForCSCCalibrationMps: Double?
     private var hasSeenFTMSEnergy: Bool = false
     private var lastFTMSTotalEnergyKcal: Double?
     private var prefersBikeHeartRate: Bool = false
@@ -139,6 +142,9 @@ class WorkoutManager: NSObject, ObservableObject {
         lastDistanceMetersSaved = 0
         hasSeenFTMSTotalDistance = false
         distanceEstimator.reset()
+        cscDistanceEstimator.reset()
+        hasSeenCSCDistance = false
+        lastSpeedForCSCCalibrationMps = nil
     }
 
     private func resetEnergyTracking() {
@@ -401,8 +407,14 @@ extension WorkoutManager: BluetoothManagerDelegate {
     func btDidUpdateSpeed(mps: Double) {
         DispatchQueue.main.async { self.cyclingSpeedMps = mps }
 
+        // Cache latest speed for CSC circumference calibration.
+        lastSpeedForCSCCalibrationMps = mps
+
         // If the bike provides cumulative distance, prefer that.
         guard !hasSeenFTMSTotalDistance else { return }
+
+        // If CSC wheel distance is active, prefer CSC-based distance rather than integrating speed.
+        guard !hasSeenCSCDistance else { return }
 
         let now = Date()
         guard let sample = distanceEstimator.update(speedMps: mps, now: now) else { return }
@@ -415,6 +427,7 @@ extension WorkoutManager: BluetoothManagerDelegate {
     func btDidUpdateTotalDistance(meters: Double) {
         hasSeenFTMSTotalDistance = true
         distanceEstimator.reset()
+        cscDistanceEstimator.reset()
         DispatchQueue.main.async { self.distanceMeters = meters }
         let now = Date()
         if let lastTime = lastDistanceUpdateTime {
@@ -469,6 +482,31 @@ extension WorkoutManager: BluetoothManagerDelegate {
             lastFTMSTotalEnergyKcal = totalKcal
             lastEnergyUpdateTime = now
         }
+    }
+
+    func btDidUpdateCSC(wheelRev: UInt32?, wheelTime: UInt16?, crankRev: UInt16?, crankTime: UInt16?) {
+        // Distance estimation from CSC wheel data (if present). Many bikes send crank-only; in that case we do nothing.
+        guard !hasSeenFTMSTotalDistance else { return }
+        guard let rev = wheelRev, let time = wheelTime else { return }
+
+        // Mark CSC distance as our preferred non-FTMS-distance source and disable speed integration.
+        hasSeenCSCDistance = true
+        distanceEstimator.reset()
+
+        let delta = cscDistanceEstimator.update(
+            wheelRev: rev,
+            wheelTime: time,
+            speedMpsForCalibration: lastSpeedForCSCCalibrationMps
+        )
+        guard let deltaMeters = delta, deltaMeters > 0 else { return }
+
+        DispatchQueue.main.async { self.distanceMeters += deltaMeters }
+
+        // We don't have absolute timestamps from CSC ticks, so use wall clock for HealthKit sample bounds.
+        // The delta is still correct; the time window just reflects arrival cadence.
+        let end = Date()
+        let start = end.addingTimeInterval(-1)
+        hkManager.addDistanceSample(deltaMeters, start: start, end: end)
     }
 }
 

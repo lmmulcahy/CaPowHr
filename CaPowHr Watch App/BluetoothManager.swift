@@ -39,6 +39,9 @@ protocol BluetoothManagerDelegate: AnyObject {
     func btDidUpdateFTMS(_ ftms: FTMSData)
     /// Emitted whenever the set of connected devices changes.
     func btDidUpdateConnectedDevices(_ names: [String])
+
+    /// Raw parsed CSC Measurement values (0x2A5B). Used for distance estimation when wheel data is present.
+    func btDidUpdateCSC(wheelRev: UInt32?, wheelTime: UInt16?, crankRev: UInt16?, crankTime: UInt16?)
 }
 
 final class BluetoothManager: NSObject {
@@ -236,6 +239,7 @@ extension BluetoothManager: CBPeripheralDelegate {
         } else if characteristic.uuid == cscMeasurementCharacteristicUUID {
             // Parse CSC and compute crank cadence (RPM).
             let csc = SensorDataParser.parseCSC(data)
+            delegate?.btDidUpdateCSC(wheelRev: csc.wheelRev, wheelTime: csc.wheelTime, crankRev: csc.crankRev, crankTime: csc.crankTime)
             guard let count = csc.crankRev, let time = csc.crankTime else { return }
             if let rpm = SensorDataParser.computeCadenceRPM(previousCount: cscLastCrankCount, previousTime: cscLastCrankTime, currentCount: count, currentTime: time) {
                 delegate?.btDidUpdateCadence(rpm: rpm)
