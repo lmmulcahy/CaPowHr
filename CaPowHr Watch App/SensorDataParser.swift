@@ -62,7 +62,9 @@ enum SensorDataParser {
         // Minimum valid length is 4 bytes: Flags (2) + Instantaneous Power (2).
         // If data is truncated (< 4), it may contain flags only; treating those bytes as power is incorrect.
         guard data.count >= 4 else { return nil }
-        let instPower = data.subdata(in: 2..<4).withUnsafeBytes { $0.load(as: Int16.self) }
+        let instPower = data.subdata(in: 2..<4).withUnsafeBytes {
+            Int16(littleEndian: $0.loadUnaligned(as: Int16.self))
+        }
         return Double(instPower)
     }
 
@@ -106,12 +108,16 @@ enum SensorDataParser {
         func readUInt16LE() -> UInt16? {
             guard data.count >= cursor + 2 else { return nil }
             defer { cursor += 2 }
-            return data.subdata(in: cursor..<(cursor + 2)).withUnsafeBytes { $0.load(as: UInt16.self) }
+            return data.subdata(in: cursor..<(cursor + 2)).withUnsafeBytes {
+                UInt16(littleEndian: $0.loadUnaligned(as: UInt16.self))
+            }
         }
         func readUInt32LE() -> UInt32? {
             guard data.count >= cursor + 4 else { return nil }
             defer { cursor += 4 }
-            return data.subdata(in: cursor..<(cursor + 4)).withUnsafeBytes { $0.load(as: UInt32.self) }
+            return data.subdata(in: cursor..<(cursor + 4)).withUnsafeBytes {
+                UInt32(littleEndian: $0.loadUnaligned(as: UInt32.self))
+            }
         }
 
         guard let flags = readUInt8() else { return (nil, nil, nil, nil) }
@@ -156,12 +162,16 @@ enum SensorDataParser {
         func readUInt16LE() -> UInt16? {
             guard data.count >= cursor + 2 else { return nil }
             defer { cursor += 2 }
-            return data.subdata(in: cursor..<(cursor + 2)).withUnsafeBytes { $0.load(as: UInt16.self) }
+            return data.subdata(in: cursor..<(cursor + 2)).withUnsafeBytes {
+                UInt16(littleEndian: $0.loadUnaligned(as: UInt16.self))
+            }
         }
         func readInt16LE() -> Int16? {
             guard data.count >= cursor + 2 else { return nil }
             defer { cursor += 2 }
-            return data.subdata(in: cursor..<(cursor + 2)).withUnsafeBytes { $0.load(as: Int16.self) }
+            return data.subdata(in: cursor..<(cursor + 2)).withUnsafeBytes {
+                Int16(littleEndian: $0.loadUnaligned(as: Int16.self))
+            }
         }
         func readUInt24LE() -> UInt32? {
             guard data.count >= cursor + 3 else { return nil }
