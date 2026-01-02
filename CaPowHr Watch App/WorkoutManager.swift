@@ -451,12 +451,19 @@ extension WorkoutManager: BluetoothManagerDelegate {
 
     func btDidUpdateFTMS(_ ftms: FTMSData) {
         // Prefer bike-reported HR when present and non-zero.
-        if let hr = ftms.heartRateBpm, hr > 0 {
-            let bpm = Double(hr)
-            prefersBikeHeartRate = true
-            lastBikeHeartRateAt = Date()
-            DispatchQueue.main.async { self.heartRate = bpm }
-            hkManager.addHeartRateSample(bpm)
+        // If the bike explicitly reports HR=0, treat it as invalid and immediately allow watch HR to take over.
+        if let hr = ftms.heartRateBpm {
+            if hr > 0 {
+                let bpm = Double(hr)
+                prefersBikeHeartRate = true
+                lastBikeHeartRateAt = Date()
+                DispatchQueue.main.async { self.heartRate = bpm }
+                hkManager.addHeartRateSample(bpm)
+            } else {
+                // Explicit zero should not "win" against the watch.
+                prefersBikeHeartRate = false
+                lastBikeHeartRateAt = nil
+            }
         } else if prefersBikeHeartRate, let last = lastBikeHeartRateAt {
             // If bike HR disappears for a while, allow watch HR to take over again.
             // (We keep the watch HR query running, we just stop ignoring it.)
