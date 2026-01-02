@@ -57,6 +57,10 @@ final class BluetoothManager: NSObject {
     private var connectedPeripherals: [CBPeripheral] = []
     /// Strong references to keep peripherals alive while connecting.
     private var connectingPeripherals: [CBPeripheral] = []
+    
+    /// Cached display names keyed by `CBPeripheral.identifier`.
+    /// `CBPeripheral.name` is frequently nil on first discovery/connect; the advertisement local name is often the best initial value.
+    private var peripheralNameCache: [UUID: String] = [:]
     /// Controls whether the manager should automatically resume scanning after disconnect/fail.
     private var allowAutoReconnect: Bool = true
 
@@ -126,7 +130,31 @@ final class BluetoothManager: NSObject {
         for p in connectingPeripherals { centralManager.cancelPeripheralConnection(p) }
         connectedPeripherals.removeAll()
         connectingPeripherals.removeAll()
+        peripheralNameCache.removeAll()
         delegate?.btDidUpdateConnectedDevices([])
+    }
+    
+    private func cachedDisplayName(for peripheral: CBPeripheral) -> String {
+        if let cached = peripheralNameCache[peripheral.identifier], !cached.isEmpty { return cached }
+        if let n = peripheral.name, !n.isEmpty {
+            peripheralNameCache[peripheral.identifier] = n
+            return n
+        }
+        return "Unknown"
+    }
+    
+    private func updateCachedName(from advertisementData: [String: Any], for peripheral: CBPeripheral) -> String? {
+        // Prefer the advertised local name when present.
+        if let advName = advertisementData[CBAdvertisementDataLocalNameKey] as? String, !advName.isEmpty {
+            peripheralNameCache[peripheral.identifier] = advName
+            return advName
+        }
+        // Fall back to whatever CoreBluetooth currently exposes.
+        if let n = peripheral.name, !n.isEmpty {
+            peripheralNameCache[peripheral.identifier] = n
+            return n
+        }
+        return nil
     }
 }
 
@@ -136,16 +164,18 @@ extension BluetoothManager: CBCentralManagerDelegate {
     }
 
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
-        print("Discovered peripheral: \(peripheral.name ?? "Unknown")")
+        _ = updateCachedName(from: advertisementData, for: peripheral)
+        let name = cachedDisplayName(for: peripheral)
+        
+        print("Discovered peripheral: \(name)")
         print("Advertisement data: \(advertisementData)")
         print("RSSI: \(RSSI)")
         BluetoothLogManager.shared.logDiscovered(peripheral: peripheral, advertisementData: advertisementData, rssi: RSSI)
 
         // Prefer peripherals that explicitly advertise cycling-related services
-        if let serviceUUIDs = advertisementData["kCBAdvDataServiceUUIDs"] as? [CBUUID] {
+        if let serviceUUIDs = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] {
             let hasCycling = serviceUUIDs.contains { $0 == cyclingPowerServiceUUID || $0 == cyclingSpeedCadenceServiceUUID || $0 == ftmsServiceUUID }
             if hasCycling {
-                let name = peripheral.name ?? "Unknown"
                 delegate?.btDidDiscoverCyclingDevice(name: name)
                 // Skip if already connected or connection is in-flight
                 if !connectedPeripherals.contains(peripheral) && !connectingPeripherals.contains(peripheral) {
@@ -156,21 +186,22 @@ extension BluetoothManager: CBCentralManagerDelegate {
                     central.connect(peripheral, options: nil)
                 }
             } else {
-                print("Skipping non-cycling device: \(peripheral.name ?? "Unknown")")
+                print("Skipping non-cycling device: \(name)")
             }
         } else {
-            print("No service UUIDs in advertisement data for: \(peripheral.name ?? "Unknown")")
+            print("No service UUIDs in advertisement data for: \(name)")
         }
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        print("Connected to peripheral: \(peripheral.name ?? "Unknown")")
+        let name = cachedDisplayName(for: peripheral)
+        print("Connected to peripheral: \(name)")
         BluetoothLogManager.shared.logConnect(peripheral: peripheral)
         // Transition from connecting → connected
         if let idx = connectingPeripherals.firstIndex(of: peripheral) { connectingPeripherals.remove(at: idx) }
         if !connectedPeripherals.contains(peripheral) { connectedPeripherals.append(peripheral) }
-        delegate?.btDidConnect(to: peripheral.name ?? "Unknown")
-        delegate?.btDidUpdateConnectedDevices(connectedPeripherals.map { $0.name ?? "Unknown Device" })
+        delegate?.btDidConnect(to: name)
+        delegate?.btDidUpdateConnectedDevices(connectedPeripherals.map { cachedDisplayName(for: $0) })
         // Discover the services we care about; then characteristics
         peripheral.delegate = self
         peripheral.discoverServices([cyclingPowerServiceUUID, cyclingSpeedCadenceServiceUUID, ftmsServiceUUID])
@@ -180,7 +211,7 @@ extension BluetoothManager: CBCentralManagerDelegate {
         print("Failed to connect to peripheral: \(error?.localizedDescription ?? "Unknown error")")
         // Remove from in-flight connections so we can retry or scan again
         if let idx = connectingPeripherals.firstIndex(of: peripheral) { connectingPeripherals.remove(at: idx) }
-        delegate?.btDidFailToConnect(name: peripheral.name ?? "Unknown", error: error)
+        delegate?.btDidFailToConnect(name: cachedDisplayName(for: peripheral), error: error)
         // Restart scanning after a short delay only if allowed
         if allowAutoReconnect {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in self?.startScanning() }
@@ -188,13 +219,14 @@ extension BluetoothManager: CBCentralManagerDelegate {
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
-        print("Disconnected from peripheral: \(peripheral.name ?? "Unknown")")
+        let name = cachedDisplayName(for: peripheral)
+        print("Disconnected from peripheral: \(name)")
         BluetoothLogManager.shared.logDisconnect(peripheral: peripheral, error: error)
         // Clean up state regardless of disconnect cause
         if let idx = connectedPeripherals.firstIndex(of: peripheral) { connectedPeripherals.remove(at: idx) }
         if let idx = connectingPeripherals.firstIndex(of: peripheral) { connectingPeripherals.remove(at: idx) }
-        delegate?.btDidDisconnect(name: peripheral.name ?? "Unknown", error: error)
-        delegate?.btDidUpdateConnectedDevices(connectedPeripherals.map { $0.name ?? "Unknown Device" })
+        delegate?.btDidDisconnect(name: name, error: error)
+        delegate?.btDidUpdateConnectedDevices(connectedPeripherals.map { cachedDisplayName(for: $0) })
         // Resume scanning to allow reconnection only if allowed
         if allowAutoReconnect {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in self?.startScanning() }
@@ -203,6 +235,14 @@ extension BluetoothManager: CBCentralManagerDelegate {
 }
 
 extension BluetoothManager: CBPeripheralDelegate {
+    func peripheralDidUpdateName(_ peripheral: CBPeripheral) {
+        // CoreBluetooth may populate `peripheral.name` only after we connect or later in the session.
+        if let n = peripheral.name, !n.isEmpty {
+            peripheralNameCache[peripheral.identifier] = n
+            delegate?.btDidUpdateConnectedDevices(connectedPeripherals.map { cachedDisplayName(for: $0) })
+        }
+    }
+    
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         guard let services = peripheral.services else { return }
         for service in services {
