@@ -8,6 +8,20 @@
 import Foundation
 import HealthKit
 
+enum HeartRateSource: String, CaseIterable {
+    case auto = "auto"
+    case bike = "bike"
+    case watch = "watch"
+    
+    var displayName: String {
+        switch self {
+        case .auto: return "Auto (default)"
+        case .bike: return "Bike"
+        case .watch: return "Apple Watch"
+        }
+    }
+}
+
 class WorkoutManager: NSObject, ObservableObject {
     // MARK: - Published Properties
     @Published var heartRate: Double = 0
@@ -55,6 +69,12 @@ class WorkoutManager: NSObject, ObservableObject {
     private var lastFTMSTotalEnergyKcal: Double?
     private var prefersBikeHeartRate: Bool = false
     private var lastBikeHeartRateAt: Date?
+    
+    // MARK: - Heart Rate Source Preference
+    private var heartRateSource: HeartRateSource {
+        let rawValue = UserDefaults.standard.string(forKey: "heartRateSource") ?? HeartRateSource.auto.rawValue
+        return HeartRateSource(rawValue: rawValue) ?? .auto
+    }
     
     override init() {
         super.init()
@@ -415,25 +435,63 @@ extension WorkoutManager: BluetoothManagerDelegate {
     }
 
     func btDidUpdateFTMS(_ ftms: FTMSData) {
-        // Prefer bike-reported HR when present and non-zero.
-        // If the bike explicitly reports HR=0, treat it as invalid and immediately allow watch HR to take over.
+        let source = heartRateSource
+        
+        // Handle bike heart rate data based on user preference
         if let hr = ftms.heartRateBpm {
             if hr > 0 {
                 let bpm = Double(hr)
-                prefersBikeHeartRate = true
                 lastBikeHeartRateAt = Date()
-                DispatchQueue.main.async { self.heartRate = bpm }
-                hkManager.addHeartRateSample(bpm)
+                
+                switch source {
+                case .bike:
+                    // Always use bike HR when preference is bike
+                    prefersBikeHeartRate = true
+                    DispatchQueue.main.async { self.heartRate = bpm }
+                    hkManager.addHeartRateSample(bpm)
+                case .watch:
+                    // Ignore bike HR when preference is watch
+                    prefersBikeHeartRate = false
+                case .auto:
+                    // Auto mode: prefer bike HR when present and non-zero
+                    prefersBikeHeartRate = true
+                    DispatchQueue.main.async { self.heartRate = bpm }
+                    hkManager.addHeartRateSample(bpm)
+                }
             } else {
-                // Explicit zero should not "win" against the watch.
-                prefersBikeHeartRate = false
-                lastBikeHeartRateAt = nil
+                // Explicit zero: handle based on mode
+                switch source {
+                case .bike:
+                    // In bike mode, set HR to zero when bike reports zero
+                    prefersBikeHeartRate = true
+                    lastBikeHeartRateAt = nil
+                    DispatchQueue.main.async { self.heartRate = 0 }
+                case .watch:
+                    // In watch mode, ignore bike HR
+                    prefersBikeHeartRate = false
+                case .auto:
+                    // Auto mode: explicit zero should not "win" against the watch
+                    prefersBikeHeartRate = false
+                    lastBikeHeartRateAt = nil
+                }
             }
-        } else if prefersBikeHeartRate, let last = lastBikeHeartRateAt {
-            // If bike HR disappears for a while, allow watch HR to take over again.
-            // (We keep the watch HR query running, we just stop ignoring it.)
-            if Date().timeIntervalSince(last) > 10 {
+        } else {
+            // Bike HR field is missing from FTMS data
+            switch source {
+            case .bike:
+                // In bike mode, set HR to zero when bike HR is not available
+                prefersBikeHeartRate = true
+                DispatchQueue.main.async { self.heartRate = 0 }
+            case .watch:
+                // In watch mode, ignore bike HR
                 prefersBikeHeartRate = false
+            case .auto:
+                // Auto mode: If bike HR disappears for a while, allow watch HR to take over again
+                if prefersBikeHeartRate, let last = lastBikeHeartRateAt {
+                    if Date().timeIntervalSince(last) > 10 {
+                        prefersBikeHeartRate = false
+                    }
+                }
             }
         }
 
@@ -485,9 +543,22 @@ extension WorkoutManager: BluetoothManagerDelegate {
 // MARK: - HealthKitManagerDelegate
 extension WorkoutManager: HealthKitManagerDelegate {
     func hkDidUpdateHeartRate(_ bpm: Double) {
-        // Only use watch HR if we are not actively receiving bike HR.
-        if prefersBikeHeartRate { return }
-        DispatchQueue.main.async { self.heartRate = bpm }
+        let source = heartRateSource
+        
+        switch source {
+        case .bike:
+            // In bike mode, always ignore watch HR - only use bike HR or show zero
+            return
+        case .watch:
+            // In watch mode, always use watch HR
+            DispatchQueue.main.async { self.heartRate = bpm }
+            hkManager.addHeartRateSample(bpm)
+        case .auto:
+            // Auto mode: only use watch HR if we are not actively receiving bike HR
+            if prefersBikeHeartRate { return }
+            DispatchQueue.main.async { self.heartRate = bpm }
+            hkManager.addHeartRateSample(bpm)
+        }
     }
 }
 
