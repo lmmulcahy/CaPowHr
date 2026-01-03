@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @ObservedObject var workoutManager: WorkoutManager
     @AppStorage("heartRateSource") private var heartRateSource: String = HeartRateSource.auto.rawValue
     
     private var heartRateSourceBinding: Binding<HeartRateSource> {
@@ -39,11 +40,11 @@ struct SettingsView: View {
                 
                 if FeatureFlags.showBLELogUpload {
                     NavigationLink {
-                        GitHubUploadView()
+                        BLELogCaptureView(workoutManager: workoutManager)
                     } label: {
                         HStack {
-                            Image(systemName: "arrow.up.doc")
-                            Text("Upload BLE Log")
+                            Image(systemName: "antenna.radiowaves.left.and.right")
+                            Text("Capture BLE Log")
                         }
                         .font(.footnote)
                     }
@@ -60,7 +61,7 @@ struct SettingsView: View {
 #if DEBUG
 #Preview {
     NavigationStack {
-        SettingsView()
+        SettingsView(workoutManager: WorkoutManager())
     }
 }
 #endif

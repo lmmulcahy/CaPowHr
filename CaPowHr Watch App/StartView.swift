@@ -34,7 +34,7 @@ struct StartView: View {
             .foregroundColor(.green)
             
             NavigationLink {
-                SettingsView()
+                SettingsView(workoutManager: workoutManager)
             } label: {
                 HStack {
                     Image(systemName: "gear")

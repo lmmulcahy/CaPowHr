@@ -90,6 +90,8 @@ final class BluetoothManager: NSObject {
     private var peripheralNameCache: [UUID: String] = [:]
     /// Controls whether the manager should automatically resume scanning after disconnect/fail.
     private var allowAutoReconnect: Bool = true
+    /// If scanning is requested before Bluetooth is powered on, we defer and auto-start once it becomes powered on.
+    private var pendingScanWhenPoweredOn: Bool = false
 
     // CSC cadence tracking (for wrap-safe cadence deltas)
     private var cscLastCrankTime: UInt16 = 0
@@ -114,9 +116,11 @@ final class BluetoothManager: NSObject {
         if isScanning { return }
         // Require Bluetooth to be powered on
         guard centralManager.state == .poweredOn else {
+            pendingScanWhenPoweredOn = true
             print("Bluetooth not powered on, state: \(centralManager.state.rawValue)")
             return
         }
+        pendingScanWhenPoweredOn = false
         // User explicitly began scanning; allow auto-reconnect behavior going forward
         allowAutoReconnect = true
         isScanning = true
@@ -186,7 +190,11 @@ final class BluetoothManager: NSObject {
 
 extension BluetoothManager: CBCentralManagerDelegate {
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        // handled in startScanning guard
+        // If a scan was requested before Bluetooth was ready, start it now.
+        guard central.state == .poweredOn else { return }
+        guard pendingScanWhenPoweredOn else { return }
+        pendingScanWhenPoweredOn = false
+        startScanning()
     }
 
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {

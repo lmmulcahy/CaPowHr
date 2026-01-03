@@ -53,8 +53,6 @@ class WorkoutManager: NSObject, ObservableObject {
     // MARK: - Workout Timer
     private let workoutTimer = WorkoutTimer()
 
-    // MARK: - BLE Logging
-    private let bleLog = BluetoothLogManager.shared
     
     // MARK: - HealthKit accumulation state
     private var lastEnergyUpdateTime: Date?
@@ -117,10 +115,6 @@ class WorkoutManager: NSObject, ObservableObject {
             } else if success {
                 DispatchQueue.main.async {
                     guard let self = self else { return }
-                    self.bleLog.startSession(
-                        reason: "workout_start",
-                        appContext: Self.makeAppContext()
-                    )
                     self.isWorkoutActive = true
                     self.hkManager.delegate = self
                     self.hkManager.startHeartRateQuery()
@@ -171,10 +165,6 @@ class WorkoutManager: NSObject, ObservableObject {
     func beginDisplayOnlyWorkoutIfPending() {
         guard pendingDisplayOnlyStart else { return }
         pendingDisplayOnlyStart = false
-        bleLog.startSession(
-            reason: "display_only_workout_start",
-            appContext: Self.makeAppContext()
-        )
         isDisplayOnlyMode = true
         isWorkoutActive = true
         hkManager.delegate = self
@@ -205,7 +195,6 @@ class WorkoutManager: NSObject, ObservableObject {
                 self.resetHeartRateTracking()
                 self.isDisplayOnlyMode = false
             }
-            bleLog.endSession(reason: "display_only_workout_stop")
             return
         }
 
@@ -250,7 +239,6 @@ class WorkoutManager: NSObject, ObservableObject {
                 self.resetDistanceTracking()
             }
         }
-        bleLog.endSession(reason: "workout_saved")
     }
 
     // MARK: - Post-workout actions
@@ -283,7 +271,6 @@ class WorkoutManager: NSObject, ObservableObject {
             self.lastDistanceUpdateTime = nil
             self.lastDistanceMetersSaved = 0
         }
-        bleLog.endSession(reason: "workout_discarded")
     }
     
     // Heart rate query handled by HealthKitManager
@@ -292,17 +279,12 @@ class WorkoutManager: NSObject, ObservableObject {
     
     // MARK: - Bluetooth Scanning
     func startScanningForTesting() {
-        bleLog.startSession(
-            reason: "manual_scan_start",
-            appContext: Self.makeAppContext()
-        )
         bluetoothManager.startScanning()
     }
     
     func disconnectSensors() {
         bluetoothManager.stopScanning()
         bluetoothManager.disconnectAll()
-        bleLog.endSession(reason: "manual_disconnect_sensors")
     }
     
     private func startAcquiringSensors() {
@@ -322,17 +304,6 @@ class WorkoutManager: NSObject, ObservableObject {
         // Delegated to BluetoothManager
         bluetoothManager.disconnectAll()
         connectedDevices.removeAll()
-    }
-
-    private static func makeAppContext() -> [String: String] {
-        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
-        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown"
-        return [
-            "app": "CaPowHr",
-            "version": version,
-            "build": build,
-            "platform": "watchOS"
-        ]
     }
     
     // Sample writes are delegated to HealthKitManager
