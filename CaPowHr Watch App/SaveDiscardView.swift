@@ -21,36 +21,22 @@ struct SaveDiscardView: View {
             } else {
                 // Buttons - show only when not processing
                 // Top discard button
-                Button(action: {
+                Button("Discard Workout") {
                     workoutManager.discardCurrentWorkout()
-                }) {
-                    Text("Discard Workout")
-                        .font(.headline)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Color.red)
-                        .cornerRadius(8)
                 }
-                .buttonStyle(PlainButtonStyle())
+                .font(.headline)
+                .fontWeight(.bold)
+                .foregroundColor(.red)
                 
                 Spacer(minLength: 12)
                 
                 // Bottom save button
-                Button(action: {
+                Button("Save Workout") {
                     workoutManager.confirmSaveWorkout()
-                }) {
-                    Text("Save Workout")
-                        .font(.headline)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Color.green)
-                        .cornerRadius(8)
                 }
-                .buttonStyle(PlainButtonStyle())
+                .font(.headline)
+                .fontWeight(.bold)
+                .foregroundColor(.green)
             }
         }
         .frame(maxHeight: .infinity, alignment: .top)

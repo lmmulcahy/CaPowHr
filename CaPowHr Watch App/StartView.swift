@@ -26,21 +26,12 @@ struct StartView: View {
                 .foregroundColor(.red)
             }
 
-            Spacer(minLength: 6)
-
-            Button(action: {
+            Button("Start") {
                 workoutManager.startWorkout()
-            }) {
-                Text("Start")
-                    .font(.headline)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: 150)
-                    .padding(.vertical, 10)
-                    .background(Color.green)
-                    .cornerRadius(8)
             }
-            .buttonStyle(PlainButtonStyle())
+            .font(.headline)
+            .fontWeight(.bold)
+            .foregroundColor(.green)
             
             NavigationLink {
                 SettingsView()
@@ -49,7 +40,7 @@ struct StartView: View {
                     Image(systemName: "gear")
                     Text("Settings")
                 }
-                .font(.footnote)
+                .font(.subheadline)
                 .foregroundColor(.secondary)
             }
         .contentShape(Rectangle())
