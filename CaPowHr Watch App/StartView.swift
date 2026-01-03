@@ -2,7 +2,6 @@ import SwiftUI
 
 struct StartView: View {
     @ObservedObject var workoutManager: WorkoutManager
-    @ObservedObject private var bleLog = BluetoothLogManager.shared
     
     var body: some View {
         VStack(spacing: 8) {
@@ -50,15 +49,6 @@ struct StartView: View {
 
             Spacer(minLength: 6)
 
-            if FeatureFlags.showBLELogUpload {
-                NavigationLink {
-                    GitHubUploadView()
-                } label: {
-                    Text("Upload BLE log to GitHub")
-                        .font(.footnote)
-                }
-            }
-
             Button(action: {
                 workoutManager.startWorkout()
             }) {
@@ -72,6 +62,17 @@ struct StartView: View {
                     .cornerRadius(8)
             }
             .buttonStyle(PlainButtonStyle())
+            
+            NavigationLink {
+                SettingsView()
+            } label: {
+                HStack {
+                    Image(systemName: "gear")
+                    Text("Settings")
+                }
+                .font(.footnote)
+                .foregroundColor(.secondary)
+            }
         .contentShape(Rectangle())
         .alert(workoutManager.alertTitle ?? "Notice", isPresented: $workoutManager.showingErrorAlert) {
             Button("OK", role: .cancel) {}
