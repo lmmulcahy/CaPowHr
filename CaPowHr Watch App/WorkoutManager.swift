@@ -18,7 +18,10 @@ class WorkoutManager: NSObject, ObservableObject {
     @Published var isWorkoutActive: Bool = false
     @Published var isAwaitingSave: Bool = false
     @Published var isEndingCollection: Bool = false
-    @Published var isScanning: Bool = false
+    /// True while we're actively trying to discover and connect to BLE sensors.
+    /// Note: This differs from BluetoothManager.isScanning (radio state) - we remain
+    /// in "acquiring" state even when the radio pauses scanning to attempt a connection.
+    @Published var isAcquiringSensors: Bool = false
     @Published var connectedDevices: [String] = []
     @Published var distanceMeters: Double = 0
     @Published var isDisplayOnlyMode: Bool = false
@@ -103,7 +106,7 @@ class WorkoutManager: NSObject, ObservableObject {
                     self.hkManager.startHeartRateQuery()
                     self.workoutTimer.onTick = { [weak self] seconds in self?.workoutDuration = seconds }
                     self.workoutTimer.start()
-                    self.startScanning()
+                    self.startAcquiringSensors()
                     self.lastEnergyUpdateTime = Date()
                     self.lastDistanceUpdateTime = Date()
                     self.lastDistanceMetersSaved = 0
@@ -158,7 +161,7 @@ class WorkoutManager: NSObject, ObservableObject {
         hkManager.startHeartRateQuery()
         workoutTimer.onTick = { [weak self] seconds in self?.workoutDuration = seconds }
         workoutTimer.start()
-        startScanning()
+        startAcquiringSensors()
         lastEnergyUpdateTime = Date()
         lastDistanceUpdateTime = Date()
         lastDistanceMetersSaved = 0
@@ -176,7 +179,7 @@ class WorkoutManager: NSObject, ObservableObject {
                 self.isAwaitingSave = false
                 self.workoutTimer.stop()
                 self.hkManager.stopHeartRateQuery()
-                self.stopScanning()
+                self.stopAcquiringSensors()
                 self.resetDistanceTracking()
                 self.resetEnergyTracking()
                 self.resetHeartRateTracking()
@@ -282,16 +285,16 @@ class WorkoutManager: NSObject, ObservableObject {
         bleLog.endSession(reason: "manual_disconnect_sensors")
     }
     
-    private func startScanning() {
-        // Avoid re-entrant scanning
-        if isScanning { return }
-        isScanning = true
+    private func startAcquiringSensors() {
+        // Avoid re-entrant acquisition
+        if isAcquiringSensors { return }
+        isAcquiringSensors = true
         bluetoothManager.startScanning()
     }
     
-    private func stopScanning() {
-        if !isScanning { return }
-        isScanning = false
+    private func stopAcquiringSensors() {
+        if !isAcquiringSensors { return }
+        isAcquiringSensors = false
         bluetoothManager.stopScanning()
     }
     
@@ -336,19 +339,19 @@ extension WorkoutManager: BluetoothManagerDelegate {
     func btDidConnect(to name: String) {
         DispatchQueue.main.async {
             if !self.connectedDevices.contains(name) { self.connectedDevices.append(name) }
-            self.isScanning = false
+            self.isAcquiringSensors = false
         }
     }
     
     func btDidFailToConnect(name: String, error: Error?) {
         print("Failed to connect to: \(name) error: \(error?.localizedDescription ?? "unknown")")
-        DispatchQueue.main.async { self.isScanning = true }
+        DispatchQueue.main.async { self.isAcquiringSensors = true }
     }
     
     func btDidDisconnect(name: String, error: Error?) {
         DispatchQueue.main.async {
             self.connectedDevices.removeAll { $0 == name }
-            self.isScanning = true
+            self.isAcquiringSensors = true
         }
     }
     
