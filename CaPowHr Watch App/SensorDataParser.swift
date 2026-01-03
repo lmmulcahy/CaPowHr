@@ -1,5 +1,62 @@
 import Foundation
 
+// MARK: - BLEDataReader
+//
+// A cursor-based reader for parsing BLE characteristic payloads.
+// All multi-byte reads are little-endian per Bluetooth SIG conventions.
+
+struct BLEDataReader {
+    private let data: Data
+    private(set) var cursor: Int = 0
+
+    init(_ data: Data) {
+        self.data = data
+    }
+
+    /// Bytes remaining from current cursor position to end of data.
+    var bytesRemaining: Int { data.count - cursor }
+
+    mutating func readUInt8() -> UInt8? {
+        guard data.count >= cursor + 1 else { return nil }
+        defer { cursor += 1 }
+        return data[cursor]
+    }
+
+    mutating func readUInt16LE() -> UInt16? {
+        guard data.count >= cursor + 2 else { return nil }
+        defer { cursor += 2 }
+        return data.subdata(in: cursor..<(cursor + 2)).withUnsafeBytes {
+            UInt16(littleEndian: $0.loadUnaligned(as: UInt16.self))
+        }
+    }
+
+    mutating func readInt16LE() -> Int16? {
+        guard data.count >= cursor + 2 else { return nil }
+        defer { cursor += 2 }
+        return data.subdata(in: cursor..<(cursor + 2)).withUnsafeBytes {
+            Int16(littleEndian: $0.loadUnaligned(as: Int16.self))
+        }
+    }
+
+    mutating func readUInt32LE() -> UInt32? {
+        guard data.count >= cursor + 4 else { return nil }
+        defer { cursor += 4 }
+        return data.subdata(in: cursor..<(cursor + 4)).withUnsafeBytes {
+            UInt32(littleEndian: $0.loadUnaligned(as: UInt32.self))
+        }
+    }
+
+    /// Reads a 24-bit unsigned integer (3 bytes, little-endian) as UInt32.
+    mutating func readUInt24LE() -> UInt32? {
+        guard data.count >= cursor + 3 else { return nil }
+        let b0 = UInt32(data[cursor])
+        let b1 = UInt32(data[cursor + 1])
+        let b2 = UInt32(data[cursor + 2])
+        cursor += 3
+        return b0 | (b1 << 8) | (b2 << 16)
+    }
+}
+
 // MARK: - SensorDataParser
 //
 // Centralized, well-documented parsing utilities for common cycling BLE profiles:
@@ -98,29 +155,9 @@ enum SensorDataParser {
     /// - If flags bit 0 set: Cumulative Wheel Revolutions (UInt32) + Last Wheel Event Time (UInt16)
     /// - If flags bit 1 set: Cumulative Crank Revolutions (UInt16) + Last Crank Event Time (UInt16)
     static func parseCSC(_ data: Data) -> (wheelRev: UInt32?, wheelTime: UInt16?, crankRev: UInt16?, crankTime: UInt16?) {
-        var cursor = 0
+        var reader = BLEDataReader(data)
 
-        func readUInt8() -> UInt8? {
-            guard data.count >= cursor + 1 else { return nil }
-            defer { cursor += 1 }
-            return data[cursor]
-        }
-        func readUInt16LE() -> UInt16? {
-            guard data.count >= cursor + 2 else { return nil }
-            defer { cursor += 2 }
-            return data.subdata(in: cursor..<(cursor + 2)).withUnsafeBytes {
-                UInt16(littleEndian: $0.loadUnaligned(as: UInt16.self))
-            }
-        }
-        func readUInt32LE() -> UInt32? {
-            guard data.count >= cursor + 4 else { return nil }
-            defer { cursor += 4 }
-            return data.subdata(in: cursor..<(cursor + 4)).withUnsafeBytes {
-                UInt32(littleEndian: $0.loadUnaligned(as: UInt32.self))
-            }
-        }
-
-        guard let flags = readUInt8() else { return (nil, nil, nil, nil) }
+        guard let flags = reader.readUInt8() else { return (nil, nil, nil, nil) }
 
         var wheelRev: UInt32?
         var wheelTime: UInt16?
@@ -129,14 +166,14 @@ enum SensorDataParser {
 
         // Bit 0: Wheel Revolution Data Present
         if (flags & 0x01) != 0 {
-            wheelRev = readUInt32LE()
-            wheelTime = readUInt16LE()
+            wheelRev = reader.readUInt32LE()
+            wheelTime = reader.readUInt16LE()
         }
 
         // Bit 1: Crank Revolution Data Present
         if (flags & 0x02) != 0 {
-            crankRev = readUInt16LE()
-            crankTime = readUInt16LE()
+            crankRev = reader.readUInt16LE()
+            crankTime = reader.readUInt16LE()
         }
 
         return (wheelRev, wheelTime, crankRev, crankTime)
@@ -150,44 +187,15 @@ enum SensorDataParser {
     /// - Instantaneous Speed (UInt16, 0.01 km/h) [mandatory]
     /// - Optional fields in strict order, controlled by Flags bit indices 1-12.
     static func parseFTMS(_ data: Data) -> FTMSData {
-        // Cursor starts at 0 (requirement)
-        var cursor = 0
+        var reader = BLEDataReader(data)
         var out = FTMSData()
 
-        func readUInt8() -> UInt8? {
-            guard data.count >= cursor + 1 else { return nil }
-            defer { cursor += 1 }
-            return data[cursor]
-        }
-        func readUInt16LE() -> UInt16? {
-            guard data.count >= cursor + 2 else { return nil }
-            defer { cursor += 2 }
-            return data.subdata(in: cursor..<(cursor + 2)).withUnsafeBytes {
-                UInt16(littleEndian: $0.loadUnaligned(as: UInt16.self))
-            }
-        }
-        func readInt16LE() -> Int16? {
-            guard data.count >= cursor + 2 else { return nil }
-            defer { cursor += 2 }
-            return data.subdata(in: cursor..<(cursor + 2)).withUnsafeBytes {
-                Int16(littleEndian: $0.loadUnaligned(as: Int16.self))
-            }
-        }
-        func readUInt24LE() -> UInt32? {
-            guard data.count >= cursor + 3 else { return nil }
-            let b0 = UInt32(data[cursor])
-            let b1 = UInt32(data[cursor + 1])
-            let b2 = UInt32(data[cursor + 2])
-            cursor += 3
-            return b0 | (b1 << 8) | (b2 << 16)
-        }
-
         // 1) FLAGS (mandatory)
-        guard let flags = readUInt16LE() else { return out }
+        guard let flags = reader.readUInt16LE() else { return out }
         out.flags = flags
 
         // 2) INSTANTANEOUS SPEED (mandatory): UInt16, 0.01 km/h
-        guard let speedRaw = readUInt16LE() else { return out }
+        guard let speedRaw = reader.readUInt16LE() else { return out }
         out.instantaneousSpeedKph = Double(speedRaw) / 100.0
 
         // Helper: check bit index in flags
@@ -198,45 +206,45 @@ enum SensorDataParser {
         // 3) OPTIONAL FIELDS in spec order, bits 1 through 12 (bit 0 ignored)
 
         // Bit 1: Average Speed (UInt16, 0.01 km/h)
-        if has(1), let raw = readUInt16LE() {
+        if has(1), let raw = reader.readUInt16LE() {
             out.averageSpeedKph = Double(raw) / 100.0
         } else if has(1) { return out }
 
         // Bit 2: Instantaneous Cadence (UInt16, 0.5 RPM)
-        if has(2), let raw = readUInt16LE() {
+        if has(2), let raw = reader.readUInt16LE() {
             out.instantaneousCadenceRpm = Double(raw) / 2.0
         } else if has(2) { return out }
 
         // Bit 3: Average Cadence (UInt16, 0.5 RPM)
-        if has(3), let raw = readUInt16LE() {
+        if has(3), let raw = reader.readUInt16LE() {
             out.averageCadenceRpm = Double(raw) / 2.0
         } else if has(3) { return out }
 
         // Bit 4: Total Distance (UInt24, meters)
-        if has(4), let raw = readUInt24LE() {
+        if has(4), let raw = reader.readUInt24LE() {
             out.totalDistanceMeters = Double(raw)
         } else if has(4) { return out }
 
         // Bit 5: Resistance Level (SInt16)
-        if has(5), let raw = readInt16LE() {
+        if has(5), let raw = reader.readInt16LE() {
             out.resistanceLevel = raw
         } else if has(5) { return out }
 
         // Bit 6: Instantaneous Power (SInt16, watts)
-        if has(6), let raw = readInt16LE() {
+        if has(6), let raw = reader.readInt16LE() {
             out.instantaneousPowerWatts = Double(raw)
         } else if has(6) { return out }
 
         // Bit 7: Average Power (SInt16, watts)
-        if has(7), let raw = readInt16LE() {
+        if has(7), let raw = reader.readInt16LE() {
             out.averagePowerWatts = Double(raw)
         } else if has(7) { return out }
 
         // Bit 8: Expended Energy (UInt16 + UInt16 + UInt8)
         if has(8) {
-            guard let total = readUInt16LE(),
-                  let perHour = readUInt16LE(),
-                  let perMin = readUInt8()
+            guard let total = reader.readUInt16LE(),
+                  let perHour = reader.readUInt16LE(),
+                  let perMin = reader.readUInt8()
             else { return out }
             out.totalEnergyKcal = total
             out.energyPerHourKcal = perHour
@@ -244,22 +252,22 @@ enum SensorDataParser {
         }
 
         // Bit 9: Heart Rate (UInt8)
-        if has(9), let raw = readUInt8() {
+        if has(9), let raw = reader.readUInt8() {
             out.heartRateBpm = raw
         } else if has(9) { return out }
 
         // Bit 10: MET (UInt8, 0.1 METs)
-        if has(10), let raw = readUInt8() {
+        if has(10), let raw = reader.readUInt8() {
             out.metabolicEquivalent = Double(raw) / 10.0
         } else if has(10) { return out }
 
         // Bit 11: Elapsed Time (UInt16, seconds)
-        if has(11), let raw = readUInt16LE() {
+        if has(11), let raw = reader.readUInt16LE() {
             out.elapsedTimeSeconds = raw
         } else if has(11) { return out }
 
         // Bit 12: Remaining Time (UInt16, seconds)
-        if has(12), let raw = readUInt16LE() {
+        if has(12), let raw = reader.readUInt16LE() {
             out.remainingTimeSeconds = raw
         } else if has(12) { return out }
 
