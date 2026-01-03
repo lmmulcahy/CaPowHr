@@ -5,39 +5,53 @@ struct SaveDiscardView: View {
     
     var body: some View {
         VStack(spacing: 8) {
-            // Top discard button
-            Button(action: {
-                workoutManager.discardCurrentWorkout()
-            }) {
-                Text("Discard Workout")
-                    .font(.headline)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(Color.red)
-                    .cornerRadius(8)
+            if workoutManager.isEndingCollection {
+                // Processing indicator - show only when processing
+                VStack(spacing: 8) {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle())
+                        .scaleEffect(1.2)
+                    Text("Processing workout...")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(maxHeight: .infinity)
+            } else {
+                // Buttons - show only when not processing
+                // Top discard button
+                Button(action: {
+                    workoutManager.discardCurrentWorkout()
+                }) {
+                    Text("Discard Workout")
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color.red)
+                        .cornerRadius(8)
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                Spacer(minLength: 12)
+                
+                // Bottom save button
+                Button(action: {
+                    workoutManager.confirmSaveWorkout()
+                }) {
+                    Text("Save Workout")
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color.green)
+                        .cornerRadius(8)
+                }
+                .buttonStyle(PlainButtonStyle())
             }
-            .buttonStyle(PlainButtonStyle())
-            .disabled(workoutManager.isEndingCollection)
-            
-            Spacer(minLength: 12)
-            
-            // Bottom save button
-            Button(action: {
-                workoutManager.confirmSaveWorkout()
-            }) {
-                Text("Save Workout")
-                    .font(.headline)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(Color.green)
-                    .cornerRadius(8)
-            }
-            .buttonStyle(PlainButtonStyle())
-            .disabled(workoutManager.isEndingCollection)
         }
         .frame(maxHeight: .infinity, alignment: .top)
         .padding(.vertical, 6)
