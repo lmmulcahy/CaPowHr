@@ -1,6 +1,33 @@
 import Foundation
 import CoreBluetooth
 
+// MARK: - Bluetooth UUIDs
+//
+// Standard Bluetooth SIG UUIDs for cycling-related services and characteristics.
+
+enum BluetoothUUIDs {
+    enum Service {
+        /// Cycling Power Service (0x1818)
+        static let cyclingPower = CBUUID(string: "1818")
+        /// Cycling Speed and Cadence Service (0x1816)
+        static let cyclingSpeedCadence = CBUUID(string: "1816")
+        /// Fitness Machine Service (0x1826)
+        static let fitnessMachine = CBUUID(string: "1826")
+
+        /// All cycling-related services for scanning
+        static let allCycling: [CBUUID] = [cyclingPower, cyclingSpeedCadence, fitnessMachine]
+    }
+
+    enum Characteristic {
+        /// Cycling Power Measurement (0x2A63)
+        static let powerMeasurement = CBUUID(string: "2A63")
+        /// CSC Measurement (0x2A5B)
+        static let cscMeasurement = CBUUID(string: "2A5B")
+        /// FTMS Indoor Bike Data (0x2AD2)
+        static let indoorBikeData = CBUUID(string: "2AD2")
+    }
+}
+
 // MARK: - BluetoothManager & Delegate
 //
 // This file encapsulates the watchOS CoreBluetooth flow for cycling sensors.
@@ -64,14 +91,6 @@ final class BluetoothManager: NSObject {
     /// Controls whether the manager should automatically resume scanning after disconnect/fail.
     private var allowAutoReconnect: Bool = true
 
-    // UUIDs
-    private let cyclingPowerServiceUUID = CBUUID(string: "1818")   // Cycling Power Service
-    private let cyclingSpeedCadenceServiceUUID = CBUUID(string: "1816") // CSC Service
-    private let powerMeasurementCharacteristicUUID = CBUUID(string: "2A63") // Cycling Power Meas.
-    private let cscMeasurementCharacteristicUUID = CBUUID(string: "2A5B")   // CSC Meas.
-    private let ftmsServiceUUID = CBUUID(string: "1826")            // Fitness Machine Service
-    private let ftmsDataCharacteristicUUID = CBUUID(string: "2AD2") // Indoor Bike Data
-
     // CSC cadence tracking (for wrap-safe cadence deltas)
     private var cscLastCrankTime: UInt16 = 0
     private var cscLastCrankCount: UInt16 = 0
@@ -112,7 +131,7 @@ final class BluetoothManager: NSObject {
                 print("Switching to specific service scanning...")
                 self.centralManager.stopScan()
                 self.centralManager.scanForPeripherals(
-                    withServices: [self.cyclingPowerServiceUUID, self.cyclingSpeedCadenceServiceUUID, self.ftmsServiceUUID],
+                    withServices: BluetoothUUIDs.Service.allCycling,
                     options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
                 )
             }
@@ -181,7 +200,7 @@ extension BluetoothManager: CBCentralManagerDelegate {
 
         // Prefer peripherals that explicitly advertise cycling-related services
         if let serviceUUIDs = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] {
-            let hasCycling = serviceUUIDs.contains { $0 == cyclingPowerServiceUUID || $0 == cyclingSpeedCadenceServiceUUID || $0 == ftmsServiceUUID }
+            let hasCycling = serviceUUIDs.contains { BluetoothUUIDs.Service.allCycling.contains($0) }
             if hasCycling {
                 delegate?.btDidDiscoverCyclingDevice(name: name)
                 // Skip if already connected or connection is in-flight
@@ -211,7 +230,7 @@ extension BluetoothManager: CBCentralManagerDelegate {
         delegate?.btDidUpdateConnectedDevices(connectedPeripherals.map { cachedDisplayName(for: $0) })
         // Discover the services we care about; then characteristics
         peripheral.delegate = self
-        peripheral.discoverServices([cyclingPowerServiceUUID, cyclingSpeedCadenceServiceUUID, ftmsServiceUUID])
+        peripheral.discoverServices(BluetoothUUIDs.Service.allCycling)
     }
 
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
@@ -266,9 +285,9 @@ extension BluetoothManager: CBPeripheralDelegate {
         for characteristic in characteristics {
             print("Discovered characteristic: \(characteristic.uuid)")
             BluetoothLogManager.shared.logDidDiscoverCharacteristic(characteristic, service: service, peripheral: peripheral)
-            if characteristic.uuid == powerMeasurementCharacteristicUUID ||
-               characteristic.uuid == cscMeasurementCharacteristicUUID ||
-               characteristic.uuid == ftmsDataCharacteristicUUID {
+            if characteristic.uuid == BluetoothUUIDs.Characteristic.powerMeasurement ||
+               characteristic.uuid == BluetoothUUIDs.Characteristic.cscMeasurement ||
+               characteristic.uuid == BluetoothUUIDs.Characteristic.indoorBikeData {
                 // Subscribe to notifications for streaming sensor data
                 peripheral.setNotifyValue(true, for: characteristic)
                 BluetoothLogManager.shared.logNotifySet(true, characteristic: characteristic, peripheral: peripheral)
@@ -280,11 +299,11 @@ extension BluetoothManager: CBPeripheralDelegate {
         guard let data = characteristic.value else { return }
         print("Received data from characteristic: \(characteristic.uuid)")
         BluetoothLogManager.shared.logRX(data, characteristic: characteristic, peripheral: peripheral, error: error)
-        if characteristic.uuid == powerMeasurementCharacteristicUUID {
+        if characteristic.uuid == BluetoothUUIDs.Characteristic.powerMeasurement {
             if let watts = SensorDataParser.parsePowerMeasurement(data) {
                 delegate?.btDidUpdatePower(watts: watts)
             }
-        } else if characteristic.uuid == cscMeasurementCharacteristicUUID {
+        } else if characteristic.uuid == BluetoothUUIDs.Characteristic.cscMeasurement {
             // Parse CSC and compute crank cadence (RPM).
             let csc = SensorDataParser.parseCSC(data)
             delegate?.btDidUpdateCSC(wheelRev: csc.wheelRev, wheelTime: csc.wheelTime, crankRev: csc.crankRev, crankTime: csc.crankTime)
@@ -294,7 +313,7 @@ extension BluetoothManager: CBPeripheralDelegate {
             }
             cscLastCrankCount = count
             cscLastCrankTime = time
-        } else if characteristic.uuid == ftmsDataCharacteristicUUID {
+        } else if characteristic.uuid == BluetoothUUIDs.Characteristic.indoorBikeData {
             let ftms = SensorDataParser.parseFTMS(data)
             if let watts = ftms.instantaneousPowerWatts { delegate?.btDidUpdatePower(watts: watts) }
             if let rpm = ftms.instantaneousCadenceRpm { delegate?.btDidUpdateCadence(rpm: rpm) }
