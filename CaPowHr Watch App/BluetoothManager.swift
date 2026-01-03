@@ -76,6 +76,12 @@ final class BluetoothManager: NSObject {
     private var cscLastCrankTime: UInt16 = 0
     private var cscLastCrankCount: UInt16 = 0
 
+    /// Resets CSC tracking state. Call when disconnecting to avoid stale deltas on reconnect.
+    private func resetCSCState() {
+        cscLastCrankTime = 0
+        cscLastCrankCount = 0
+    }
+
     override init() {
         super.init()
         // Set self as the central delegate so we receive discovery/connection callbacks
@@ -131,6 +137,7 @@ final class BluetoothManager: NSObject {
         connectedPeripherals.removeAll()
         connectingPeripherals.removeAll()
         peripheralNameCache.removeAll()
+        resetCSCState()
         delegate?.btDidUpdateConnectedDevices([])
     }
     
@@ -225,6 +232,7 @@ extension BluetoothManager: CBCentralManagerDelegate {
         // Clean up state regardless of disconnect cause
         if let idx = connectedPeripherals.firstIndex(of: peripheral) { connectedPeripherals.remove(at: idx) }
         if let idx = connectingPeripherals.firstIndex(of: peripheral) { connectingPeripherals.remove(at: idx) }
+        resetCSCState()
         delegate?.btDidDisconnect(name: name, error: error)
         delegate?.btDidUpdateConnectedDevices(connectedPeripherals.map { cachedDisplayName(for: $0) })
         // Resume scanning to allow reconnection only if allowed
