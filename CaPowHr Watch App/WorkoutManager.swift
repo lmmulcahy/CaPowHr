@@ -7,8 +7,6 @@
 
 import Foundation
 import HealthKit
-import CoreBluetooth
-import WatchKit
 
 class WorkoutManager: NSObject, ObservableObject {
     // MARK: - Published Properties
@@ -32,10 +30,8 @@ class WorkoutManager: NSObject, ObservableObject {
     // MARK: - Health Services
     private let hkManager = HealthKitManager()
     
-    // MARK: - CoreBluetooth Properties
-    private var centralManager: CBCentralManager!
+    // MARK: - CoreBluetooth
     private let bluetoothManager = BluetoothManager()
-    // BLE fields moved into BluetoothManager
     
     // MARK: - Workout Timer
     private let workoutTimer = WorkoutTimer()
@@ -57,18 +53,8 @@ class WorkoutManager: NSObject, ObservableObject {
     private var prefersBikeHeartRate: Bool = false
     private var lastBikeHeartRateAt: Date?
     
-    // MARK: - Bluetooth Service and Characteristic UUIDs
-    // Standard Cycling Services
-    // UUIDs handled by BluetoothManager
-    
-    // MARK: - Cadence Calculation
-    private var lastCrankRevolutionTime: UInt16 = 0
-    private var lastCrankRevolutionCount: UInt16 = 0
-    
     override init() {
         super.init()
-        // Legacy central remains for backwards compatibility (will be removed)
-        centralManager = CBCentralManager(delegate: self, queue: nil)
         bluetoothManager.delegate = self
     }
     
@@ -341,18 +327,6 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
 }
 
 
-// MARK: - CBCentralManagerDelegate (legacy)
-extension WorkoutManager: CBCentralManagerDelegate {
-    func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        // Delegate handled by BluetoothManager
-        if central.state == .poweredOn {
-            print("Bluetooth is powered on")
-        }
-    }
-    
-    // Remaining CBCentralManager delegate methods are handled by BluetoothManager
-}
-
 // MARK: - BluetoothManagerDelegate
 extension WorkoutManager: BluetoothManagerDelegate {
     func btDidDiscoverCyclingDevice(name: String) {
@@ -526,5 +500,3 @@ extension WorkoutManager: HealthKitManagerDelegate {
     }
 }
 
-// MARK: - CBPeripheralDelegate
-// Peripheral delegate handled by BluetoothManager
