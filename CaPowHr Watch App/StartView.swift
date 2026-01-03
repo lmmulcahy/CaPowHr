@@ -13,31 +13,13 @@ struct StartView: View {
             .padding(.top, 4)
             
             if workoutManager.connectedDevices.isEmpty {
-                Text("No sensors connected")
-                    .font(.footnote)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 4)
-            } else {
-                Text("Connected: \(workoutManager.connectedDevices.joined(separator: ", "))")
-                    .font(.footnote)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .foregroundColor(.green)
-                    .padding(.horizontal, 4)
-            }
-            
-            if workoutManager.connectedDevices.isEmpty {
                 Button("Connect Sensors") {
                     workoutManager.startScanningForTesting()
                 }
                 .font(.subheadline)
                 .foregroundColor(.blue)
             } else {
-                Button("Disconnect Sensors") {
+                Button("Disconnect \(workoutManager.connectedDevices.joined(separator: ", "))") {
                     workoutManager.disconnectSensors()
                 }
                 .font(.subheadline)
