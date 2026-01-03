@@ -195,7 +195,7 @@ class WorkoutManager: NSObject, ObservableObject {
             self.isWorkoutActive = false
             self.workoutTimer.stop()
             self.hkManager.stopHeartRateQuery()
-            self.stopScanning()
+            self.stopAcquiringSensors()
             self.resetDistanceTracking()
             self.resetEnergyTracking()
             self.resetHeartRateTracking()
