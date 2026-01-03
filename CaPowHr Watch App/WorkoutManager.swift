@@ -318,18 +318,6 @@ class WorkoutManager: NSObject, ObservableObject {
     // Sample writes are delegated to HealthKitManager
 }
 
-// MARK: - HKWorkoutSessionDelegate
-extension WorkoutManager: HKWorkoutSessionDelegate {
-    func workoutSession(_ workoutSession: HKWorkoutSession, didChangeTo toState: HKWorkoutSessionState, from fromState: HKWorkoutSessionState, date: Date) {
-        // Handle workout session state changes
-    }
-    
-    func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
-        print("Workout session failed: \(error.localizedDescription)")
-    }
-}
-
-
 // MARK: - BluetoothManagerDelegate
 extension WorkoutManager: BluetoothManagerDelegate {
     func btDidDiscoverCyclingDevice(name: String) {
