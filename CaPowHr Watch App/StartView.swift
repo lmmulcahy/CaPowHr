@@ -9,9 +9,6 @@ struct StartView: View {
             HStack {
                 Image(systemName: "bicycle")
                     .foregroundColor(.green)
-                Text("CaPowHr")
-                    .font(.headline)
-                    .fontWeight(.bold)
             }
             .padding(.top, 4)
             
