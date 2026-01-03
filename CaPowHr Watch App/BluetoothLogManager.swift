@@ -85,19 +85,7 @@ final class BluetoothLogManager: ObservableObject {
                 }
 
                 // Header record: session metadata.
-                let header = BLELogRecord(
-                    ts: Date(),
-                    type: .sessionStart,
-                    message: "Session start",
-                    reason: reason,
-                    peripheral: nil,
-                    serviceUUID: nil,
-                    characteristicUUID: nil,
-                    rssi: nil,
-                    dataHex: nil,
-                    advertisement: nil,
-                    app: appContext
-                )
+                let header = BLELogRecord(type: .sessionStart, message: "Session start", reason: reason, app: appContext)
                 try self.writeRecord(header)
             } catch {
                 DispatchQueue.main.async {
@@ -114,19 +102,7 @@ final class BluetoothLogManager: ObservableObject {
         queue.async {
             if !self.isLogging { return }
             do {
-                let footer = BLELogRecord(
-                    ts: Date(),
-                    type: .sessionEnd,
-                    message: "Session end",
-                    reason: reason,
-                    peripheral: nil,
-                    serviceUUID: nil,
-                    characteristicUUID: nil,
-                    rssi: nil,
-                    dataHex: nil,
-                    advertisement: nil,
-                    app: nil
-                )
+                let footer = BLELogRecord(type: .sessionEnd, message: "Session end", reason: reason)
                 try self.writeRecord(footer)
             } catch {
                 DispatchQueue.main.async {
@@ -151,17 +127,11 @@ final class BluetoothLogManager: ObservableObject {
             guard self.isLogging else { return }
             let adv = Self.stringifyAdvertisement(advertisementData)
             let rec = BLELogRecord(
-                ts: Date(),
                 type: .discover,
                 message: "Discovered peripheral",
-                reason: nil,
                 peripheral: BLEPeripheralRef(from: peripheral),
-                serviceUUID: nil,
-                characteristicUUID: nil,
                 rssi: rssi.intValue,
-                dataHex: nil,
-                advertisement: adv,
-                app: nil
+                advertisement: adv
             )
             try? self.writeRecord(rec)
         }
@@ -180,17 +150,10 @@ final class BluetoothLogManager: ObservableObject {
         queue.async {
             guard self.isLogging else { return }
             let rec = BLELogRecord(
-                ts: Date(),
                 type: .serviceDiscovered,
                 message: "Discovered service",
-                reason: nil,
                 peripheral: BLEPeripheralRef(from: peripheral),
-                serviceUUID: service.uuid.uuidString,
-                characteristicUUID: nil,
-                rssi: nil,
-                dataHex: nil,
-                advertisement: nil,
-                app: nil
+                serviceUUID: service.uuid.uuidString
             )
             try? self.writeRecord(rec)
         }
@@ -200,17 +163,11 @@ final class BluetoothLogManager: ObservableObject {
         queue.async {
             guard self.isLogging else { return }
             let rec = BLELogRecord(
-                ts: Date(),
                 type: .characteristicDiscovered,
                 message: "Discovered characteristic",
-                reason: nil,
                 peripheral: BLEPeripheralRef(from: peripheral),
                 serviceUUID: service.uuid.uuidString,
-                characteristicUUID: characteristic.uuid.uuidString,
-                rssi: nil,
-                dataHex: nil,
-                advertisement: nil,
-                app: nil
+                characteristicUUID: characteristic.uuid.uuidString
             )
             try? self.writeRecord(rec)
         }
@@ -220,17 +177,11 @@ final class BluetoothLogManager: ObservableObject {
         queue.async {
             guard self.isLogging else { return }
             let rec = BLELogRecord(
-                ts: Date(),
                 type: .notifySet,
                 message: enabled ? "Notify enabled" : "Notify disabled",
-                reason: nil,
                 peripheral: BLEPeripheralRef(from: peripheral),
                 serviceUUID: characteristic.service?.uuid.uuidString,
-                characteristicUUID: characteristic.uuid.uuidString,
-                rssi: nil,
-                dataHex: nil,
-                advertisement: nil,
-                app: nil
+                characteristicUUID: characteristic.uuid.uuidString
             )
             try? self.writeRecord(rec)
         }
@@ -241,17 +192,12 @@ final class BluetoothLogManager: ObservableObject {
             guard self.isLogging else { return }
             let msg = error.map { "RX error: \($0.localizedDescription)" } ?? "RX"
             let rec = BLELogRecord(
-                ts: Date(),
                 type: .rx,
                 message: msg,
-                reason: nil,
                 peripheral: BLEPeripheralRef(from: peripheral),
                 serviceUUID: characteristic.service?.uuid.uuidString,
                 characteristicUUID: characteristic.uuid.uuidString,
-                rssi: nil,
-                dataHex: data.hexString,
-                advertisement: nil,
-                app: nil
+                dataHex: data.hexString
             )
             try? self.writeRecord(rec)
         }
@@ -261,17 +207,12 @@ final class BluetoothLogManager: ObservableObject {
         queue.async {
             guard self.isLogging else { return }
             let rec = BLELogRecord(
-                ts: Date(),
                 type: .tx,
                 message: "TX",
-                reason: nil,
                 peripheral: BLEPeripheralRef(from: peripheral),
                 serviceUUID: characteristic.service?.uuid.uuidString,
                 characteristicUUID: characteristic.uuid.uuidString,
-                rssi: nil,
-                dataHex: data.hexString,
-                advertisement: nil,
-                app: nil
+                dataHex: data.hexString
             )
             try? self.writeRecord(rec)
         }
@@ -282,19 +223,7 @@ final class BluetoothLogManager: ObservableObject {
     private func logSimple(_ type: BLELogRecord.RecordType, _ message: String) {
         queue.async {
             guard self.isLogging else { return }
-            let rec = BLELogRecord(
-                ts: Date(),
-                type: type,
-                message: message,
-                reason: nil,
-                peripheral: nil,
-                serviceUUID: nil,
-                characteristicUUID: nil,
-                rssi: nil,
-                dataHex: nil,
-                advertisement: nil,
-                app: nil
-            )
+            let rec = BLELogRecord(type: type, message: message)
             try? self.writeRecord(rec)
         }
     }
@@ -302,19 +231,7 @@ final class BluetoothLogManager: ObservableObject {
     private func logWithPeripheral(_ type: BLELogRecord.RecordType, _ message: String, peripheral: CBPeripheral) {
         queue.async {
             guard self.isLogging else { return }
-            let rec = BLELogRecord(
-                ts: Date(),
-                type: type,
-                message: message,
-                reason: nil,
-                peripheral: BLEPeripheralRef(from: peripheral),
-                serviceUUID: nil,
-                characteristicUUID: nil,
-                rssi: nil,
-                dataHex: nil,
-                advertisement: nil,
-                app: nil
-            )
+            let rec = BLELogRecord(type: type, message: message, peripheral: BLEPeripheralRef(from: peripheral))
             try? self.writeRecord(rec)
         }
     }
@@ -420,6 +337,32 @@ struct BLELogRecord: Codable {
 
     // Optional app context (version/build/etc) included only in session start.
     var app: [String: String]?
+
+    /// Convenience initializer with defaults for optional fields.
+    init(
+        type: RecordType,
+        message: String,
+        reason: String? = nil,
+        peripheral: BLEPeripheralRef? = nil,
+        serviceUUID: String? = nil,
+        characteristicUUID: String? = nil,
+        rssi: Int? = nil,
+        dataHex: String? = nil,
+        advertisement: [String: String]? = nil,
+        app: [String: String]? = nil
+    ) {
+        self.ts = Date()
+        self.type = type
+        self.message = message
+        self.reason = reason
+        self.peripheral = peripheral
+        self.serviceUUID = serviceUUID
+        self.characteristicUUID = characteristicUUID
+        self.rssi = rssi
+        self.dataHex = dataHex
+        self.advertisement = advertisement
+        self.app = app
+    }
 }
 
 private extension Data {
