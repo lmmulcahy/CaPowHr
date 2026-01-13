@@ -1,12 +1,8 @@
 import Foundation
 
 enum FeatureFlags {
-    /// Gate internal-only UI/flows that should not ship in production builds.
-    #if DEBUG
+    /// BLE log capture for diagnostics - available in all builds.
     static let showBLELogUpload = true
-    #else
-    static let showBLELogUpload = false
-    #endif
 }
 
 
