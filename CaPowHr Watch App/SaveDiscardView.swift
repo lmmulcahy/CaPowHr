@@ -4,9 +4,9 @@ struct SaveDiscardView: View {
     @ObservedObject var workoutManager: WorkoutManager
     
     var body: some View {
-        VStack(spacing: 8) {
+        ZStack {
+            // Processing indicator - overlaid when processing
             if workoutManager.isEndingCollection {
-                // Processing indicator - show only when processing
                 VStack(spacing: 8) {
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle())
@@ -16,10 +16,11 @@ struct SaveDiscardView: View {
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                 }
-                .frame(maxWidth: .infinity)
-                .frame(maxHeight: .infinity)
-            } else {
-                // Buttons - show only when not processing
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            
+            // Buttons - always in the hierarchy, but disabled when processing
+            VStack(spacing: 8) {
                 // Top discard button
                 Button("Discard Workout") {
                     workoutManager.discardCurrentWorkout()
@@ -27,6 +28,7 @@ struct SaveDiscardView: View {
                 .font(.headline)
                 .fontWeight(.bold)
                 .foregroundColor(.red)
+                .disabled(workoutManager.isEndingCollection)
                 
                 Spacer(minLength: 12)
                 
@@ -37,10 +39,12 @@ struct SaveDiscardView: View {
                 .font(.headline)
                 .fontWeight(.bold)
                 .foregroundColor(.green)
+                .disabled(workoutManager.isEndingCollection)
             }
+            .frame(maxHeight: .infinity, alignment: .top)
+            .padding(.vertical, 6)
+            .opacity(workoutManager.isEndingCollection ? 0 : 1)
         }
-        .frame(maxHeight: .infinity, alignment: .top)
-        .padding(.vertical, 6)
     }
 }
 
