@@ -122,7 +122,10 @@ class WorkoutManager: NSObject, ObservableObject {
                     self.workoutTimer.start()
                     self.startAcquiringSensors()
                     self.lastEnergyUpdateTime = Date()
-                    self.lastDistanceUpdateTime = Date()
+                    // Note: Do NOT initialize lastDistanceUpdateTime here. If the bike
+                    // provides totalDistanceMeters, the first call to btDidUpdateTotalDistance
+                    // will establish the baseline. If we set it here, we risk double-counting
+                    // distance when transitioning from speed-integration to total-distance mode.
                     self.lastDistanceMetersSaved = 0
                 }
             } else {
@@ -173,7 +176,7 @@ class WorkoutManager: NSObject, ObservableObject {
         workoutTimer.start()
         startAcquiringSensors()
         lastEnergyUpdateTime = Date()
-        lastDistanceUpdateTime = Date()
+        // Note: Do NOT initialize lastDistanceUpdateTime here. See comment in startWorkout().
         lastDistanceMetersSaved = 0
     }
     
