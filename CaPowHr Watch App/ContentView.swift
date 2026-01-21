@@ -16,7 +16,13 @@ struct ContentView: View {
             if workoutManager.isAwaitingSave {
                 SaveDiscardView(workoutManager: workoutManager)
             } else if workoutManager.isWorkoutActive {
-                WorkoutView(workoutManager: workoutManager)
+                // Switch UI based on detected device type
+                switch workoutManager.detectedDeviceType {
+                case .treadmill:
+                    TreadmillWorkoutView(workoutManager: workoutManager)
+                case .bike, .unknown:
+                    WorkoutView(workoutManager: workoutManager)
+                }
             } else {
                 StartView(workoutManager: workoutManager)
             }

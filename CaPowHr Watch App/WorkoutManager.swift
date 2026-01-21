@@ -44,6 +44,11 @@ class WorkoutManager: NSObject, ObservableObject {
     @Published var alertTitle: String? = nil
     @Published var pendingDisplayOnlyStart: Bool = false
     
+    // MARK: - Treadmill-specific Properties
+    @Published var detectedDeviceType: FitnessDeviceType = .unknown
+    @Published var treadmillSpeedMps: Double = 0
+    @Published var treadmillInclinePercent: Double = 0
+    
     // MARK: - Health Services
     private let hkManager = HealthKitManager()
     
@@ -196,6 +201,9 @@ class WorkoutManager: NSObject, ObservableObject {
                 self.resetDistanceTracking()
                 self.resetEnergyTracking()
                 self.resetHeartRateTracking()
+                self.treadmillSpeedMps = 0
+                self.treadmillInclinePercent = 0
+                self.detectedDeviceType = .unknown
                 self.isDisplayOnlyMode = false
             }
             return
@@ -240,6 +248,9 @@ class WorkoutManager: NSObject, ObservableObject {
                 self.hkManager.stopHeartRateQuery()
                 self.disconnectAllPeripherals()
                 self.resetDistanceTracking()
+                self.treadmillSpeedMps = 0
+                self.treadmillInclinePercent = 0
+                self.detectedDeviceType = .unknown
             }
         }
     }
@@ -269,6 +280,9 @@ class WorkoutManager: NSObject, ObservableObject {
             self.workoutDuration = 0
             self.distanceMeters = 0
             self.cyclingSpeedMps = 0
+            self.treadmillSpeedMps = 0
+            self.treadmillInclinePercent = 0
+            self.detectedDeviceType = .unknown
             self.resetEnergyTracking()
             self.resetHeartRateTracking()
             self.lastDistanceUpdateTime = nil
@@ -511,6 +525,74 @@ extension WorkoutManager: BluetoothManagerDelegate {
         let end = Date()
         let start = end.addingTimeInterval(-1)
         hkManager.addDistanceSample(deltaMeters, start: start, end: end)
+    }
+
+    func btDidUpdateTreadmill(_ treadmill: TreadmillData) {
+        // Update treadmill-specific metrics
+        if let speedMps = treadmill.instantaneousSpeedMps {
+            DispatchQueue.main.async { self.treadmillSpeedMps = speedMps }
+        }
+        if let incline = treadmill.inclinePercent {
+            DispatchQueue.main.async { self.treadmillInclinePercent = incline }
+        }
+        
+        // Handle heart rate from treadmill
+        let source = heartRateSource
+        if let hr = treadmill.heartRateBpm {
+            if hr > 0 {
+                let bpm = Double(hr)
+                lastBikeHeartRateAt = Date()
+                
+                switch source {
+                case .bike:
+                    // "bike" preference means prefer equipment HR
+                    prefersBikeHeartRate = true
+                    DispatchQueue.main.async { self.heartRate = bpm }
+                    hkManager.addHeartRateSample(bpm)
+                case .watch:
+                    prefersBikeHeartRate = false
+                case .auto:
+                    prefersBikeHeartRate = true
+                    DispatchQueue.main.async { self.heartRate = bpm }
+                    hkManager.addHeartRateSample(bpm)
+                }
+            } else {
+                switch source {
+                case .bike:
+                    prefersBikeHeartRate = true
+                    lastBikeHeartRateAt = nil
+                    DispatchQueue.main.async { self.heartRate = 0 }
+                case .watch:
+                    prefersBikeHeartRate = false
+                case .auto:
+                    prefersBikeHeartRate = false
+                    lastBikeHeartRateAt = nil
+                }
+            }
+        }
+        
+        // Handle energy from treadmill (same logic as bike)
+        if let total = treadmill.totalEnergyKcal {
+            let totalKcal = Double(total)
+            let now = Date()
+            hasSeenFTMSEnergy = true
+            
+            if let lastTotal = lastFTMSTotalEnergyKcal, let lastTime = lastEnergyUpdateTime {
+                let delta = totalKcal - lastTotal
+                if delta > 0 {
+                    hkManager.addEnergyBurnedSample(delta, start: lastTime, end: now)
+                }
+            }
+            
+            lastFTMSTotalEnergyKcal = totalKcal
+            lastEnergyUpdateTime = now
+        }
+    }
+
+    func btDidDetectDeviceType(_ type: FitnessDeviceType) {
+        DispatchQueue.main.async {
+            self.detectedDeviceType = type
+        }
     }
 }
 

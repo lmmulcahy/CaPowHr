@@ -6,6 +6,7 @@
 //
 
 import Testing
+import Foundation
 @testable import CaPowHr_Watch_App
 
 struct CaPowHr_Watch_AppTests {
@@ -174,6 +175,36 @@ struct CaPowHr_Watch_AppTests {
         } else {
             #expect(false, "Expected a delta distance once calibrated")
         }
+    }
+
+    @Test func treadmillData_parsesSpeedAndIncline() async throws {
+        // Treadmill data packet:
+        // flags = 0x000C (bit 2: total distance, bit 3: incline+ramp) -> 0C 00
+        // speed = 0x0320 = 800 = 8.00 km/h -> 20 03
+        // total distance (UInt24) = 2000 meters = 0x0007D0 -> D0 07 00
+        // incline (SInt16) = 50 = 5.0% = 0x0032 -> 32 00
+        // ramp angle (SInt16) = 30 = 3.0° = 0x001E -> 1E 00
+        let payload = dataFromHex("0C002003D007003200 1E00")
+        let parsed = SensorDataParser.parseTreadmillData(payload)
+
+        #expect(parsed.flags == 0x000C)
+        #expect(parsed.instantaneousSpeedKph == 8.00)
+        #expect(parsed.totalDistanceMeters == 2000)
+        #expect(parsed.inclinePercent == 5.0)
+        #expect(parsed.rampAngleDegrees == 3.0)
+    }
+
+    @Test func treadmillData_parsesMinimalPacket() async throws {
+        // Just flags and speed (no optional fields)
+        // flags = 0x0000
+        // speed = 0x0258 = 600 = 6.00 km/h
+        let payload = dataFromHex("00005802")
+        let parsed = SensorDataParser.parseTreadmillData(payload)
+
+        #expect(parsed.flags == 0x0000)
+        #expect(parsed.instantaneousSpeedKph == 6.00)
+        #expect(parsed.totalDistanceMeters == nil)
+        #expect(parsed.inclinePercent == nil)
     }
 
 }
