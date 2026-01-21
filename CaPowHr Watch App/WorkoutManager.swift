@@ -45,6 +45,9 @@ class WorkoutManager: NSObject, ObservableObject {
     @Published var treadmillSpeedMps: Double = 0
     @Published var treadmillInclinePercent: Double = 0
     
+    // MARK: - Current Workout Type
+    @Published var currentWorkoutType: WorkoutType = .indoorCycle
+    
     // MARK: - Health Services
     private let hkManager = HealthKitManager()
     
@@ -84,8 +87,9 @@ class WorkoutManager: NSObject, ObservableObject {
     func requestHealthKitAuthorization() { hkManager.requestAuthorization() }
     
     // MARK: - Workout Control
-    func startWorkout() {
+    func startWorkout(type: WorkoutType = .indoorCycle) {
         guard !isWorkoutActive else { return }
+        currentWorkoutType = type
 
         let canShareWorkout = hkManager.isWorkoutSharingAuthorized()
         if !canShareWorkout {
@@ -99,9 +103,7 @@ class WorkoutManager: NSObject, ObservableObject {
             return
         }
 
-        let configuration = HKWorkoutConfiguration()
-        configuration.activityType = .cycling
-        configuration.locationType = .indoor
+        let configuration = hkManager.configuration(for: type)
         
         hkManager.beginWorkout(configuration: configuration) { [weak self] success, error in
             if let error = error {

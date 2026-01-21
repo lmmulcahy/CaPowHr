@@ -26,12 +26,40 @@ struct StartView: View {
                 .foregroundColor(.red)
             }
 
-            Button("Start") {
-                workoutManager.startWorkout()
+            // Device-specific start buttons
+            if workoutManager.connectedDevices.isEmpty {
+                Button("Start") {}
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(.gray)
+                    .disabled(true)
+            } else {
+                switch workoutManager.detectedDeviceType {
+                case .treadmill:
+                    HStack(spacing: 8) {
+                        Button("Start Run") {
+                            workoutManager.startWorkout(type: .indoorRun)
+                        }
+                        .font(.subheadline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.orange)
+                        
+                        Button("Start Walk") {
+                            workoutManager.startWorkout(type: .indoorWalk)
+                        }
+                        .font(.subheadline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.green)
+                    }
+                case .bike, .unknown:
+                    Button("Start Ride") {
+                        workoutManager.startWorkout(type: .indoorCycle)
+                    }
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(.green)
+                }
             }
-            .font(.headline)
-            .fontWeight(.bold)
-            .foregroundColor(.green)
             
             NavigationLink {
                 SettingsView(workoutManager: workoutManager)
@@ -67,9 +95,17 @@ struct StartView: View {
     return StartView(workoutManager: wm)
 }
 
-#Preview("With Devices") {
+#Preview("Bike Connected") {
     let wm = WorkoutManager()
     wm.connectedDevices = ["ICSE"]
+    wm.detectedDeviceType = .bike
+    return StartView(workoutManager: wm)
+}
+
+#Preview("Treadmill Connected") {
+    let wm = WorkoutManager()
+    wm.connectedDevices = ["Treadmill"]
+    wm.detectedDeviceType = .treadmill
     return StartView(workoutManager: wm)
 }
 #endif

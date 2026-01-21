@@ -36,7 +36,8 @@ final class HealthKitManager: NSObject {
             HKObjectType.quantityType(forIdentifier: .cyclingPower)!,
             HKObjectType.quantityType(forIdentifier: .cyclingCadence)!,
             HKObjectType.quantityType(forIdentifier: .activeEnergyBurned)!,
-            HKObjectType.quantityType(forIdentifier: .distanceCycling)!
+            HKObjectType.quantityType(forIdentifier: .distanceCycling)!,
+            HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning)!
         ]
 
         healthStore.requestAuthorization(toShare: typesToWrite, read: typesToRead) { success, error in
@@ -46,6 +47,23 @@ final class HealthKitManager: NSObject {
                 print("HealthKit authorization granted")
             }
         }
+    }
+
+    // MARK: - Workout Configuration
+    func configuration(for workoutType: WorkoutType) -> HKWorkoutConfiguration {
+        let config = HKWorkoutConfiguration()
+        config.locationType = .indoor
+        
+        switch workoutType {
+        case .indoorCycle:
+            config.activityType = .cycling
+        case .indoorRun:
+            config.activityType = .running
+        case .indoorWalk:
+            config.activityType = .walking
+        }
+        
+        return config
     }
 
     // MARK: - Authorization Status Helpers
@@ -163,6 +181,15 @@ final class HealthKitManager: NSObject {
         let sample = HKQuantitySample(type: type, quantity: quantity, start: start, end: end)
         workoutBuilder?.add([sample]) { _, error in
             if let error = error { print("Error adding distance sample: \(error.localizedDescription)") }
+        }
+    }
+
+    func addWalkingRunningDistanceSample(_ distanceMetersDelta: Double, start: Date, end: Date) {
+        guard let type = HKQuantityType.quantityType(forIdentifier: .distanceWalkingRunning) else { return }
+        let quantity = HKQuantity(unit: HKUnit.meter(), doubleValue: distanceMetersDelta)
+        let sample = HKQuantitySample(type: type, quantity: quantity, start: start, end: end)
+        workoutBuilder?.add([sample]) { _, error in
+            if let error = error { print("Error adding walking/running distance sample: \(error.localizedDescription)") }
         }
     }
 
