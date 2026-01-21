@@ -38,7 +38,7 @@ enum BluetoothUUIDs {
 // - Connect to peripherals advertising cycling services (CSC, FTMS, Cycling Power)
 // - Maintain connection state to avoid duplicate connections and to keep peripherals alive
 // - Discover characteristics and subscribe (notifications) for data streams
-// - Route raw data to SensorDataParser and emit updates to the app via delegate callbacks
+// - Route raw data to CyclingSensorParser/TreadmillSensorParser and emit updates to the app via delegate callbacks
 //
 // Notes on watchOS/CoreBluetooth behavior that inform the design:
 // - You must keep a strong reference to CBPeripheral while connecting/connected to avoid API MISUSE
@@ -65,7 +65,7 @@ protocol BluetoothManagerDelegate: AnyObject {
     /// Parsed total distance in meters (cumulative).
     func btDidUpdateTotalDistance(meters: Double)
     /// Full parsed FTMS Indoor Bike Data packet (includes fields we may not display).
-    func btDidUpdateFTMS(_ ftms: FTMSData)
+    func btDidUpdateIndoorBike(_ data: IndoorBikeData)
     /// Full parsed FTMS Treadmill Data packet.
     func btDidUpdateTreadmill(_ treadmill: TreadmillData)
     /// Called when the device type is detected (bike vs treadmill).
@@ -322,28 +322,28 @@ extension BluetoothManager: CBPeripheralDelegate {
         print("Received data from characteristic: \(characteristic.uuid)")
         BluetoothLogManager.shared.logRX(data, characteristic: characteristic, peripheral: peripheral, error: error)
         if characteristic.uuid == BluetoothUUIDs.Characteristic.powerMeasurement {
-            if let watts = SensorDataParser.parsePowerMeasurement(data) {
+            if let watts = CyclingSensorParser.parsePowerMeasurement(data) {
                 delegate?.btDidUpdatePower(watts: watts)
             }
         } else if characteristic.uuid == BluetoothUUIDs.Characteristic.cscMeasurement {
             // Parse CSC and compute crank cadence (RPM).
-            let csc = SensorDataParser.parseCSC(data)
+            let csc = CyclingSensorParser.parseCSC(data)
             delegate?.btDidUpdateCSC(wheelRev: csc.wheelRev, wheelTime: csc.wheelTime, crankRev: csc.crankRev, crankTime: csc.crankTime)
             guard let count = csc.crankRev, let time = csc.crankTime else { return }
-            if let rpm = SensorDataParser.computeCadenceRPM(previousCount: cscLastCrankCount, previousTime: cscLastCrankTime, currentCount: count, currentTime: time) {
+            if let rpm = CyclingSensorParser.computeCadenceRPM(previousCount: cscLastCrankCount, previousTime: cscLastCrankTime, currentCount: count, currentTime: time) {
                 delegate?.btDidUpdateCadence(rpm: rpm)
             }
             cscLastCrankCount = count
             cscLastCrankTime = time
         } else if characteristic.uuid == BluetoothUUIDs.Characteristic.indoorBikeData {
-            let ftms = SensorDataParser.parseFTMS(data)
-            if let watts = ftms.instantaneousPowerWatts { delegate?.btDidUpdatePower(watts: watts) }
-            if let rpm = ftms.instantaneousCadenceRpm { delegate?.btDidUpdateCadence(rpm: rpm) }
-            if let mps = ftms.instantaneousSpeedMps { delegate?.btDidUpdateSpeed(mps: mps) }
-            if let meters = ftms.totalDistanceMeters { delegate?.btDidUpdateTotalDistance(meters: meters) }
-            delegate?.btDidUpdateFTMS(ftms)
+            let bikeData = CyclingSensorParser.parseIndoorBikeData(data)
+            if let watts = bikeData.instantaneousPowerWatts { delegate?.btDidUpdatePower(watts: watts) }
+            if let rpm = bikeData.instantaneousCadenceRpm { delegate?.btDidUpdateCadence(rpm: rpm) }
+            if let mps = bikeData.instantaneousSpeedMps { delegate?.btDidUpdateSpeed(mps: mps) }
+            if let meters = bikeData.totalDistanceMeters { delegate?.btDidUpdateTotalDistance(meters: meters) }
+            delegate?.btDidUpdateIndoorBike(bikeData)
         } else if characteristic.uuid == BluetoothUUIDs.Characteristic.treadmillData {
-            let treadmill = SensorDataParser.parseTreadmillData(data)
+            let treadmill = TreadmillSensorParser.parseTreadmillData(data)
             if let mps = treadmill.instantaneousSpeedMps { delegate?.btDidUpdateSpeed(mps: mps) }
             if let meters = treadmill.totalDistanceMeters { delegate?.btDidUpdateTotalDistance(meters: meters) }
             delegate?.btDidUpdateTreadmill(treadmill)

@@ -51,9 +51,6 @@ struct IndoorBikeData {
     }
 }
 
-/// Type alias for backward compatibility with existing code.
-typealias FTMSData = IndoorBikeData
-
 // MARK: - CyclingSensorParser
 
 /// Parsing utilities for cycling BLE profiles.
@@ -207,30 +204,5 @@ enum CyclingSensorParser {
         } else if has(12) { return out }
 
         return out
-    }
-}
-
-// MARK: - Backward Compatibility
-
-/// Legacy namespace for backward compatibility. Prefer using `CyclingSensorParser` directly.
-enum SensorDataParser {
-    static func parsePowerMeasurement(_ data: Data) -> Double? {
-        CyclingSensorParser.parsePowerMeasurement(data)
-    }
-    
-    static func computeCadenceRPM(previousCount: UInt16, previousTime: UInt16, currentCount: UInt16, currentTime: UInt16) -> Double? {
-        CyclingSensorParser.computeCadenceRPM(previousCount: previousCount, previousTime: previousTime, currentCount: currentCount, currentTime: currentTime)
-    }
-    
-    static func parseCSC(_ data: Data) -> (wheelRev: UInt32?, wheelTime: UInt16?, crankRev: UInt16?, crankTime: UInt16?) {
-        CyclingSensorParser.parseCSC(data)
-    }
-    
-    static func parseFTMS(_ data: Data) -> FTMSData {
-        CyclingSensorParser.parseIndoorBikeData(data)
-    }
-    
-    static func parseTreadmillData(_ data: Data) -> TreadmillData {
-        TreadmillSensorParser.parseTreadmillData(data)
     }
 }

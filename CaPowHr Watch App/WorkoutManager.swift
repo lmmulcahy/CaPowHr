@@ -422,11 +422,11 @@ extension WorkoutManager: BluetoothManagerDelegate {
         DispatchQueue.main.async { self.connectedDevices = names }
     }
 
-    func btDidUpdateFTMS(_ ftms: FTMSData) {
+    func btDidUpdateIndoorBike(_ bikeData: IndoorBikeData) {
         let source = heartRateSource
         
         // Handle bike heart rate data based on user preference
-        if let hr = ftms.heartRateBpm {
+        if let hr = bikeData.heartRateBpm {
             if hr > 0 {
                 let bpm = Double(hr)
                 lastBikeHeartRateAt = Date()
@@ -484,7 +484,7 @@ extension WorkoutManager: BluetoothManagerDelegate {
         }
 
         // Prefer device-reported expended energy (kcal) when present.
-        if let total = ftms.totalEnergyKcal {
+        if let total = bikeData.totalEnergyKcal {
             let totalKcal = Double(total)
             let now = Date()
             hasSeenFTMSEnergy = true

@@ -39,7 +39,7 @@ struct CaPowHr_Watch_AppTests {
         // total distance = 0x000013 => 19 meters
         // inst power = 0x0014 => 20 watts
         let payload = dataFromHex("74038804260013000015001400000000000000")
-        let parsed = SensorDataParser.parseFTMS(payload)
+        let parsed = CyclingSensorParser.parseIndoorBikeData(payload)
 
         #expect(parsed.flags == 0x0374)
         #expect(parsed.instantaneousSpeedKph == 11.60)
@@ -55,7 +55,7 @@ struct CaPowHr_Watch_AppTests {
         // total distance (UInt24) = 0 meters in this particular frame
         // inst power raw = 0x0010 => 16 watts
         let payload = dataFromHex("fe098f044a002800030000000026001000000000004400010300")
-        let parsed = SensorDataParser.parseFTMS(payload)
+        let parsed = CyclingSensorParser.parseIndoorBikeData(payload)
 
         #expect(parsed.flags == 0x09FE)
         #expect(parsed.instantaneousSpeedKph == 11.67)
@@ -71,7 +71,7 @@ struct CaPowHr_Watch_AppTests {
 
         do {
             let payload = dataFromHex("4402240e7c00d10000")
-            let parsed = SensorDataParser.parseFTMS(payload)
+            let parsed = CyclingSensorParser.parseIndoorBikeData(payload)
             #expect(parsed.flags == 0x0244)
             #expect(parsed.instantaneousSpeedKph == 36.20) // 0x0E24 / 100
             #expect(parsed.instantaneousCadenceRpm == 62)   // 0x007C / 2
@@ -81,7 +81,7 @@ struct CaPowHr_Watch_AppTests {
 
         do {
             let payload = dataFromHex("4402de0d7c00cc0000")
-            let parsed = SensorDataParser.parseFTMS(payload)
+            let parsed = CyclingSensorParser.parseIndoorBikeData(payload)
             #expect(parsed.flags == 0x0244)
             #expect(parsed.instantaneousSpeedKph == 35.50) // 0x0DDE / 100
             #expect(parsed.instantaneousCadenceRpm == 62)  // 0x007C / 2
@@ -91,7 +91,7 @@ struct CaPowHr_Watch_AppTests {
 
         do {
             let payload = dataFromHex("4402b40f9e001d0100")
-            let parsed = SensorDataParser.parseFTMS(payload)
+            let parsed = CyclingSensorParser.parseIndoorBikeData(payload)
             #expect(parsed.flags == 0x0244)
             #expect(parsed.instantaneousSpeedKph == 40.20) // 0x0FB4 / 100
             #expect(parsed.instantaneousCadenceRpm == 79)  // 0x009E / 2
@@ -148,8 +148,8 @@ struct CaPowHr_Watch_AppTests {
         // FTMS speed near this period (from log): 36.20 kph = 10.055555... m/s
         let csc1 = dataFromHex("03c02e0100cab0483bbe8f")
         let csc2 = dataFromHex("03c52e0100e8b4493b8d93")
-        let p1 = SensorDataParser.parseCSC(csc1)
-        let p2 = SensorDataParser.parseCSC(csc2)
+        let p1 = CyclingSensorParser.parseCSC(csc1)
+        let p2 = CyclingSensorParser.parseCSC(csc2)
         #expect(p1.wheelRev != nil)
         #expect(p2.wheelRev != nil)
 
@@ -185,7 +185,7 @@ struct CaPowHr_Watch_AppTests {
         // incline (SInt16) = 50 = 5.0% = 0x0032 -> 32 00
         // ramp angle (SInt16) = 30 = 3.0° = 0x001E -> 1E 00
         let payload = dataFromHex("0C002003D007003200 1E00")
-        let parsed = SensorDataParser.parseTreadmillData(payload)
+        let parsed = TreadmillSensorParser.parseTreadmillData(payload)
 
         #expect(parsed.flags == 0x000C)
         #expect(parsed.instantaneousSpeedKph == 8.00)
@@ -199,7 +199,7 @@ struct CaPowHr_Watch_AppTests {
         // flags = 0x0000
         // speed = 0x0258 = 600 = 6.00 km/h
         let payload = dataFromHex("00005802")
-        let parsed = SensorDataParser.parseTreadmillData(payload)
+        let parsed = TreadmillSensorParser.parseTreadmillData(payload)
 
         #expect(parsed.flags == 0x0000)
         #expect(parsed.instantaneousSpeedKph == 6.00)
