@@ -7,8 +7,32 @@ struct StartView: View {
         VStack(spacing: 8) {
             // Header
             HStack {
-                Image(systemName: "bicycle")
-                    .foregroundColor(.green)
+                // Device-specific start buttons
+                if workoutManager.connectedDevices.isEmpty {
+                    Image(systemName: "bicycle")
+                        .foregroundColor(.orange)
+                    Image(systemName: "figure.run")
+                        .foregroundColor(.orange)
+                    Image(systemName: "figure.walk")
+                        .foregroundColor(.orange)
+                } else {
+                    switch workoutManager.detectedDeviceType {
+                    case .treadmill:
+                        Image(systemName: "bicycle")
+                            .foregroundColor(.gray)
+                        Image(systemName: "figure.run")
+                            .foregroundColor(.green)
+                        Image(systemName: "figure.walk")
+                            .foregroundColor(.green)
+                    case .bike, .unknown:
+                        Image(systemName: "bicycle")
+                            .foregroundColor(.green)
+                        Image(systemName: "figure.run")
+                            .foregroundColor(.gray)
+                        Image(systemName: "figure.walk")
+                            .foregroundColor(.gray)
+                    }
+                }
             }
             .padding(.top, 4)
             
@@ -42,7 +66,7 @@ struct StartView: View {
                         }
                         .font(.subheadline)
                         .fontWeight(.bold)
-                        .foregroundColor(.orange)
+                        .foregroundColor(.green)
                         
                         Button("Start Walk") {
                             workoutManager.startWorkout(type: .indoorWalk)
