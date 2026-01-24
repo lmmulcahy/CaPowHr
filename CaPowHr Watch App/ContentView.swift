@@ -20,6 +20,9 @@ struct ContentView: View {
                 switch workoutManager.detectedDeviceType {
                 case .treadmill:
                     TreadmillWorkoutView(workoutManager: workoutManager)
+                case .rower:
+                    // TODO: Create dedicated RowerWorkoutView
+                    WorkoutView(workoutManager: workoutManager)
                 case .bike, .unknown:
                     WorkoutView(workoutManager: workoutManager)
                 }

@@ -61,6 +61,8 @@ final class HealthKitManager: NSObject {
             config.activityType = .running
         case .indoorWalk:
             config.activityType = .walking
+        case .indoorRow:
+            config.activityType = .rowing
         }
         
         return config

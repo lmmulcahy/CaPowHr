@@ -15,6 +15,8 @@ enum FitnessDeviceType: String {
     case bike
     /// Treadmill (detected via Treadmill Data characteristic 0x2ACD).
     case treadmill
+    /// Rower (detected via Rower Data characteristic 0x2AD1).
+    case rower
 }
 
 /// The type of workout to start, based on device and user selection.
@@ -25,4 +27,6 @@ enum WorkoutType {
     case indoorRun
     /// Indoor walking workout (for treadmills).
     case indoorWalk
+    /// Indoor rowing workout (for rowers).
+    case indoorRow
 }

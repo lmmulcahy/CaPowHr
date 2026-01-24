@@ -15,6 +15,8 @@ struct StartView: View {
                         .foregroundColor(.orange)
                     Image(systemName: "figure.walk")
                         .foregroundColor(.orange)
+                    Image(systemName: "oar.2.crossed")
+                        .foregroundColor(.orange)
                 } else {
                     switch workoutManager.detectedDeviceType {
                     case .treadmill:
@@ -24,12 +26,25 @@ struct StartView: View {
                             .foregroundColor(.green)
                         Image(systemName: "figure.walk")
                             .foregroundColor(.green)
+                        Image(systemName: "oar.2.crossed")
+                            .foregroundColor(.gray)
+                    case .rower:
+                        Image(systemName: "bicycle")
+                            .foregroundColor(.gray)
+                        Image(systemName: "figure.run")
+                            .foregroundColor(.gray)
+                        Image(systemName: "figure.walk")
+                            .foregroundColor(.gray)
+                        Image(systemName: "oar.2.crossed")
+                            .foregroundColor(.green)
                     case .bike, .unknown:
                         Image(systemName: "bicycle")
                             .foregroundColor(.green)
                         Image(systemName: "figure.run")
                             .foregroundColor(.gray)
                         Image(systemName: "figure.walk")
+                            .foregroundColor(.gray)
+                        Image(systemName: "oar.2.crossed")
                             .foregroundColor(.gray)
                     }
                 }
@@ -75,6 +90,13 @@ struct StartView: View {
                         .fontWeight(.bold)
                         .foregroundColor(.green)
                     }
+                case .rower:
+                    Button("Start Row") {
+                        workoutManager.startWorkout(type: .indoorRow)
+                    }
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(.green)
                 case .bike, .unknown:
                     Button("Start Ride") {
                         workoutManager.startWorkout(type: .indoorCycle)
@@ -130,6 +152,13 @@ struct StartView: View {
     let wm = WorkoutManager()
     wm.connectedDevices = ["Treadmill"]
     wm.detectedDeviceType = .treadmill
+    return StartView(workoutManager: wm)
+}
+
+#Preview("Rower Connected") {
+    let wm = WorkoutManager()
+    wm.connectedDevices = ["Rower"]
+    wm.detectedDeviceType = .rower
     return StartView(workoutManager: wm)
 }
 #endif

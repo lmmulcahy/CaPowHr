@@ -27,6 +27,8 @@ enum BluetoothUUIDs {
         static let indoorBikeData = CBUUID(string: "2AD2")
         /// FTMS Treadmill Data (0x2ACD)
         static let treadmillData = CBUUID(string: "2ACD")
+        /// FTMS Rower Data (0x2AD1)
+        static let rowerData = CBUUID(string: "2AD1")
     }
 }
 
@@ -68,6 +70,8 @@ protocol BluetoothManagerDelegate: AnyObject {
     func btDidUpdateIndoorBike(_ data: IndoorBikeData)
     /// Full parsed FTMS Treadmill Data packet.
     func btDidUpdateTreadmill(_ treadmill: TreadmillData)
+    /// Full parsed FTMS Rower Data packet.
+    func btDidUpdateRower(_ rower: RowerData)
     /// Called when the device type is detected (bike vs treadmill).
     func btDidDetectDeviceType(_ type: FitnessDeviceType)
     /// Emitted whenever the set of connected devices changes.
@@ -302,7 +306,8 @@ extension BluetoothManager: CBPeripheralDelegate {
             if characteristic.uuid == BluetoothUUIDs.Characteristic.powerMeasurement ||
                characteristic.uuid == BluetoothUUIDs.Characteristic.cscMeasurement ||
                characteristic.uuid == BluetoothUUIDs.Characteristic.indoorBikeData ||
-               characteristic.uuid == BluetoothUUIDs.Characteristic.treadmillData {
+               characteristic.uuid == BluetoothUUIDs.Characteristic.treadmillData ||
+               characteristic.uuid == BluetoothUUIDs.Characteristic.rowerData {
                 // Subscribe to notifications for streaming sensor data
                 peripheral.setNotifyValue(true, for: characteristic)
                 BluetoothLogManager.shared.logNotifySet(true, characteristic: characteristic, peripheral: peripheral)
@@ -312,6 +317,8 @@ extension BluetoothManager: CBPeripheralDelegate {
                     delegate?.btDidDetectDeviceType(.bike)
                 } else if characteristic.uuid == BluetoothUUIDs.Characteristic.treadmillData {
                     delegate?.btDidDetectDeviceType(.treadmill)
+                } else if characteristic.uuid == BluetoothUUIDs.Characteristic.rowerData {
+                    delegate?.btDidDetectDeviceType(.rower)
                 }
             }
         }
@@ -347,6 +354,11 @@ extension BluetoothManager: CBPeripheralDelegate {
             if let mps = treadmill.instantaneousSpeedMps { delegate?.btDidUpdateSpeed(mps: mps) }
             if let meters = treadmill.totalDistanceMeters { delegate?.btDidUpdateTotalDistance(meters: meters) }
             delegate?.btDidUpdateTreadmill(treadmill)
+        } else if characteristic.uuid == BluetoothUUIDs.Characteristic.rowerData {
+            let rower = RowerSensorParser.parseRowerData(data)
+            if let watts = rower.instantaneousPowerWatts { delegate?.btDidUpdatePower(watts: watts) }
+            if let meters = rower.totalDistanceMeters { delegate?.btDidUpdateTotalDistance(meters: meters) }
+            delegate?.btDidUpdateRower(rower)
         }
     }
     

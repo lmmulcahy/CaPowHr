@@ -207,4 +207,52 @@ struct CaPowHr_Watch_AppTests {
         #expect(parsed.inclinePercent == nil)
     }
 
+    // MARK: - Rower Data Tests
+
+    @Test func rowerData_parsesStrokeRateAndCount() async throws {
+        // Rower data packet with stroke rate and count (bit 0 = 0 means present):
+        // flags = 0x0000 (bit 0 = 0, so stroke rate/count present)
+        // stroke rate = 0x3C = 60 -> 30 strokes/min (0.5 resolution)
+        // stroke count = 0x0064 = 100 strokes
+        let payload = dataFromHex("00003C6400")
+        let parsed = RowerSensorParser.parseRowerData(payload)
+
+        #expect(parsed.flags == 0x0000)
+        #expect(parsed.strokeRatePerMinute == 30.0)
+        #expect(parsed.strokeCount == 100)
+    }
+
+    @Test func rowerData_parsesDistanceAndPace() async throws {
+        // Rower data packet with distance and pace:
+        // flags = 0x000D (bits 2 and 3 set: distance + pace; bit 0 = 1 means no stroke data)
+        //   - bit 0 = 1 (no stroke data)
+        //   - bit 2 = 1 (total distance present)
+        //   - bit 3 = 1 (instantaneous pace present)
+        // total distance (UInt24) = 5000 meters = 0x001388 -> 88 13 00
+        // instantaneous pace = 120 seconds per 500m = 0x0078 -> 78 00
+        let payload = dataFromHex("0D00881300 7800")
+        let parsed = RowerSensorParser.parseRowerData(payload)
+
+        #expect(parsed.flags == 0x000D)
+        #expect(parsed.strokeRatePerMinute == nil)  // bit 0 = 1 means no stroke data
+        #expect(parsed.totalDistanceMeters == 5000)
+        #expect(parsed.instantaneousPaceSeconds500m == 120)
+    }
+
+    @Test func rowerData_parsesWithPower() async throws {
+        // Rower data with stroke rate, count, and power:
+        // flags = 0x0020 (bit 5 = power; bit 0 = 0 = stroke data present)
+        // stroke rate = 0x38 = 56 -> 28 strokes/min
+        // stroke count = 0x00C8 = 200 strokes
+        // instantaneous power = 0x0096 = 150 watts
+        let payload = dataFromHex("200038C8009600")
+        let parsed = RowerSensorParser.parseRowerData(payload)
+
+        #expect(parsed.flags == 0x0020)
+        #expect(parsed.strokeRatePerMinute == 28.0)
+        #expect(parsed.strokeCount == 200)
+        #expect(parsed.instantaneousPowerWatts == 150)
+    }
+
 }
+

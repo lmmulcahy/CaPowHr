@@ -45,6 +45,11 @@ class WorkoutManager: NSObject, ObservableObject {
     @Published var treadmillSpeedMps: Double = 0
     @Published var treadmillInclinePercent: Double = 0
     
+    // MARK: - Rower-specific Properties
+    @Published var rowerStrokeRatePerMinute: Double = 0
+    @Published var rowerStrokeCount: UInt16 = 0
+    @Published var rowerPaceSeconds500m: Double = 0
+    
     // MARK: - Current Workout Type
     @Published var currentWorkoutType: WorkoutType = .indoorCycle
     
@@ -248,6 +253,9 @@ class WorkoutManager: NSObject, ObservableObject {
                 self.resetDistanceTracking()
                 self.treadmillSpeedMps = 0
                 self.treadmillInclinePercent = 0
+                self.rowerStrokeRatePerMinute = 0
+                self.rowerStrokeCount = 0
+                self.rowerPaceSeconds500m = 0
                 self.detectedDeviceType = .unknown
             }
         }
@@ -280,6 +288,9 @@ class WorkoutManager: NSObject, ObservableObject {
             self.cyclingSpeedMps = 0
             self.treadmillSpeedMps = 0
             self.treadmillInclinePercent = 0
+            self.rowerStrokeRatePerMinute = 0
+            self.rowerStrokeCount = 0
+            self.rowerPaceSeconds500m = 0
             self.detectedDeviceType = .unknown
             self.resetEnergyTracking()
             self.resetHeartRateTracking()
@@ -557,6 +568,71 @@ extension WorkoutManager: BluetoothManagerDelegate {
         
         // Handle energy from treadmill (same logic as bike)
         if let total = treadmill.totalEnergyKcal {
+            let totalKcal = Double(total)
+            let now = Date()
+            hasSeenFTMSEnergy = true
+            
+            if let lastTotal = lastFTMSTotalEnergyKcal, let lastTime = lastEnergyUpdateTime {
+                let delta = totalKcal - lastTotal
+                if delta > 0 {
+                    hkManager.addEnergyBurnedSample(delta, start: lastTime, end: now)
+                }
+            }
+            
+            lastFTMSTotalEnergyKcal = totalKcal
+            lastEnergyUpdateTime = now
+        }
+    }
+
+    func btDidUpdateRower(_ rower: RowerData) {
+        // Update rower-specific metrics
+        if let strokeRate = rower.strokeRatePerMinute {
+            DispatchQueue.main.async { self.rowerStrokeRatePerMinute = strokeRate }
+        }
+        if let strokeCount = rower.strokeCount {
+            DispatchQueue.main.async { self.rowerStrokeCount = strokeCount }
+        }
+        if let pace = rower.instantaneousPaceSeconds500m {
+            DispatchQueue.main.async { self.rowerPaceSeconds500m = pace }
+        }
+        
+        // Handle heart rate from rower
+        let source = heartRateSource
+        if let hr = rower.heartRateBpm {
+            if hr > 0 {
+                let bpm = Double(hr)
+                lastBikeHeartRateAt = Date()
+                
+                switch source {
+                case .bike:
+                    // "bike" preference means prefer equipment HR
+                    prefersBikeHeartRate = true
+                    DispatchQueue.main.async { self.heartRate = bpm }
+                    hkManager.addHeartRateSample(bpm)
+                case .watch:
+                    prefersBikeHeartRate = false
+                case .auto:
+                    prefersBikeHeartRate = true
+                    DispatchQueue.main.async { self.heartRate = bpm }
+                    hkManager.addHeartRateSample(bpm)
+                }
+            } else {
+                switch source {
+                case .bike:
+                    prefersBikeHeartRate = true
+                    lastBikeHeartRateAt = nil
+                    DispatchQueue.main.async { self.heartRate = 0 }
+                case .watch:
+                    prefersBikeHeartRate = false
+                case .auto:
+                    prefersBikeHeartRate = false
+                    lastBikeHeartRateAt = nil
+                }
+            }
+        }
+        
+        // Handle energy from rower (same logic as bike/treadmill)
+        if let total = rower.totalEnergyKcal {
             let totalKcal = Double(total)
             let now = Date()
             hasSeenFTMSEnergy = true
