@@ -20,7 +20,9 @@ final class StravaAuthManager: NSObject, ObservableObject {
     
     override init() {
         super.init()
-        checkAuthenticationStatus()
+        Task {
+            checkAuthenticationStatus()
+        }
     }
     
     // MARK: - Public Methods

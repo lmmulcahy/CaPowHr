@@ -9,7 +9,7 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var workoutManager = WorkoutManager()
-    @StateObject private var stravaAuthManager = StravaAuthManager()
+    @StateObject private var stravaAuthManager: StravaAuthManager
     @StateObject private var stravaUploader: StravaUploader
     
     init() {
