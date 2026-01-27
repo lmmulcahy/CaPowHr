@@ -9,12 +9,23 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var workoutManager = WorkoutManager()
+    @StateObject private var stravaAuthManager = StravaAuthManager()
+    @StateObject private var stravaUploader: StravaUploader
+    
+    init() {
+        let authManager = StravaAuthManager()
+        _stravaAuthManager = StateObject(wrappedValue: authManager)
+        _stravaUploader = StateObject(wrappedValue: StravaUploader(authManager: authManager))
+    }
     
     var body: some View {
         VStack(spacing: 8) {
             // Body Content
             if workoutManager.isAwaitingSave {
-                SaveDiscardView(workoutManager: workoutManager)
+                SaveDiscardView(
+                    workoutManager: workoutManager,
+                    stravaUploader: stravaUploader
+                )
             } else if workoutManager.isWorkoutActive {
                 // Switch UI based on detected device type
                 switch workoutManager.detectedDeviceType {
@@ -26,7 +37,11 @@ struct ContentView: View {
                     WorkoutView(workoutManager: workoutManager)
                 }
             } else {
-                StartView(workoutManager: workoutManager)
+                StartView(
+                    workoutManager: workoutManager,
+                    stravaAuthManager: stravaAuthManager,
+                    stravaUploader: stravaUploader
+                )
             }
             
             Spacer()
@@ -38,3 +53,4 @@ struct ContentView: View {
 #Preview {
     ContentView()
 }
+

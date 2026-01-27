@@ -4,6 +4,17 @@
 <dict>
     <key>CaPowHrGitHubToken</key>
     <string>$(CAPOWHR_GITHUB_TOKEN)</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>com.capowhr.strava-callback</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>capowhr</string>
+            </array>
+        </dict>
+    </array>
 </dict>
 </plist>
 

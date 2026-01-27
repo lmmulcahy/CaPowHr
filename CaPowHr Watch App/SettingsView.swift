@@ -2,6 +2,8 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var workoutManager: WorkoutManager
+    @ObservedObject var stravaAuthManager: StravaAuthManager
+    @ObservedObject var stravaUploader: StravaUploader
     @AppStorage("heartRateSource") private var heartRateSource: String = HeartRateSource.auto.rawValue
     
     private var heartRateSourceBinding: Binding<HeartRateSource> {
@@ -50,6 +52,27 @@ struct SettingsView: View {
                     }
                 }
                 
+                // Strava Integration
+                NavigationLink {
+                    StravaSettingsView(
+                        authManager: stravaAuthManager,
+                        uploader: stravaUploader
+                    )
+                } label: {
+                    HStack {
+                        Image(systemName: "figure.run.circle")
+                            .foregroundColor(.orange)
+                        Text("Strava")
+                        Spacer()
+                        if stravaAuthManager.isAuthenticated {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                                .font(.caption)
+                        }
+                    }
+                    .font(.footnote)
+                }
+                
                 Spacer()
             }
             .padding(.horizontal, 8)
@@ -60,8 +83,13 @@ struct SettingsView: View {
 
 #if DEBUG
 #Preview {
+    let authManager = StravaAuthManager()
     NavigationStack {
-        SettingsView(workoutManager: WorkoutManager())
+        SettingsView(
+            workoutManager: WorkoutManager(),
+            stravaAuthManager: authManager,
+            stravaUploader: StravaUploader(authManager: authManager)
+        )
     }
 }
 #endif

@@ -2,6 +2,8 @@ import SwiftUI
 
 struct StartView: View {
     @ObservedObject var workoutManager: WorkoutManager
+    @ObservedObject var stravaAuthManager: StravaAuthManager
+    @ObservedObject var stravaUploader: StravaUploader
     
     var body: some View {
         VStack(spacing: 8) {
@@ -108,7 +110,11 @@ struct StartView: View {
             }
             
             NavigationLink {
-                SettingsView(workoutManager: workoutManager)
+                SettingsView(
+                    workoutManager: workoutManager,
+                    stravaAuthManager: stravaAuthManager,
+                    stravaUploader: stravaUploader
+                )
             } label: {
                 HStack {
                     Image(systemName: "gear")
@@ -138,28 +144,48 @@ struct StartView: View {
 #if DEBUG
 #Preview("No Devices") {
     let wm = WorkoutManager()
-    return StartView(workoutManager: wm)
+    let authManager = StravaAuthManager()
+    return StartView(
+        workoutManager: wm,
+        stravaAuthManager: authManager,
+        stravaUploader: StravaUploader(authManager: authManager)
+    )
 }
 
 #Preview("Bike Connected") {
     let wm = WorkoutManager()
     wm.connectedDevices = ["ICSE"]
     wm.detectedDeviceType = .bike
-    return StartView(workoutManager: wm)
+    let authManager = StravaAuthManager()
+    return StartView(
+        workoutManager: wm,
+        stravaAuthManager: authManager,
+        stravaUploader: StravaUploader(authManager: authManager)
+    )
 }
 
 #Preview("Treadmill Connected") {
     let wm = WorkoutManager()
     wm.connectedDevices = ["Treadmill"]
     wm.detectedDeviceType = .treadmill
-    return StartView(workoutManager: wm)
+    let authManager = StravaAuthManager()
+    return StartView(
+        workoutManager: wm,
+        stravaAuthManager: authManager,
+        stravaUploader: StravaUploader(authManager: authManager)
+    )
 }
 
 #Preview("Rower Connected") {
     let wm = WorkoutManager()
     wm.connectedDevices = ["Rower"]
     wm.detectedDeviceType = .rower
-    return StartView(workoutManager: wm)
+    let authManager = StravaAuthManager()
+    return StartView(
+        workoutManager: wm,
+        stravaAuthManager: authManager,
+        stravaUploader: StravaUploader(authManager: authManager)
+    )
 }
 #endif
 
