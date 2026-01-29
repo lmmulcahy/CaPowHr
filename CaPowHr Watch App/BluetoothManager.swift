@@ -51,7 +51,8 @@ enum BluetoothUUIDs {
 /// Implemented by higher-level coordinators (e.g., WorkoutManager).
 protocol BluetoothManagerDelegate: AnyObject {
     /// Called when we discover a peripheral that advertises cycling services.
-    func btDidDiscoverCyclingDevice(name: String)
+    /// Called when we discover a peripheral with cycling/fitness services.
+    func btDidDiscoverDevice(name: String, identifier: UUID, rssi: Int, advertisementData: [String: Any])
     /// Called after a successful CoreBluetooth connection.
     func btDidConnect(to name: String)
     /// Called when CoreBluetooth fails to connect to a peripheral.
@@ -101,7 +102,11 @@ final class BluetoothManager: NSObject {
     /// Controls whether the manager should automatically resume scanning after disconnect/fail.
     private var allowAutoReconnect: Bool = true
     /// If scanning is requested before Bluetooth is powered on, we defer and auto-start once it becomes powered on.
+    /// If scanning is requested before Bluetooth is powered on, we defer and auto-start once it becomes powered on.
     private var pendingScanWhenPoweredOn: Bool = false
+    
+    /// Keep track of discovered peripherals so we can connect to them by UUID later.
+    private var discoveredPeripheralsDict: [UUID: CBPeripheral] = [:]
 
     // CSC cadence tracking (for wrap-safe cadence deltas)
     private var cscLastCrankTime: UInt16 = 0
@@ -137,6 +142,8 @@ final class BluetoothManager: NSObject {
         print("Starting Bluetooth scan for cycling services...")
         BluetoothLogManager.shared.logScanStart()
         // Phase 1: broad scan for any peripheral (no service filter)
+        // We will filter in didDiscover.
+        discoveredPeripheralsDict.removeAll()
         centralManager.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
         // After a short window, narrow to cycling services to reduce noise
         DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
@@ -194,7 +201,24 @@ final class BluetoothManager: NSObject {
             peripheralNameCache[peripheral.identifier] = n
             return n
         }
-        return nil
+            return nil
+    }
+    
+    /// User selected a device to connect to.
+    func connect(to identifier: UUID) {
+        guard let peripheral = discoveredPeripheralsDict[identifier] else {
+            print("Peripheral \(identifier) not found in discovered list.")
+            return
+        }
+        
+        // Stop scanning to prevent radio contention during connection
+        stopScanning()
+        
+        if !connectedPeripherals.contains(peripheral) && !connectingPeripherals.contains(peripheral) {
+            connectingPeripherals.append(peripheral)
+            print("Connecting to \(cachedDisplayName(for: peripheral))...")
+            centralManager.connect(peripheral, options: nil)
+        }
     }
 }
 
@@ -216,24 +240,26 @@ extension BluetoothManager: CBCentralManagerDelegate {
         print("RSSI: \(RSSI)")
         BluetoothLogManager.shared.logDiscovered(peripheral: peripheral, advertisementData: advertisementData, rssi: RSSI)
 
+        // Keep a reference to the peripheral
+        discoveredPeripheralsDict[peripheral.identifier] = peripheral
+
         // Prefer peripherals that explicitly advertise cycling-related services
         if let serviceUUIDs = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] {
             let hasCycling = serviceUUIDs.contains { BluetoothUUIDs.Service.allCycling.contains($0) }
             if hasCycling {
-                delegate?.btDidDiscoverCyclingDevice(name: name)
-                // Skip if already connected or connection is in-flight
-                if !connectedPeripherals.contains(peripheral) && !connectingPeripherals.contains(peripheral) {
-                    // Stop scanning to prevent radio contention during connection
-                    stopScanning()
-                    connectingPeripherals.append(peripheral)
-                    print("Connecting to \(name)...")
-                    central.connect(peripheral, options: nil)
-                }
+                // Notify delegate instead of auto-connecting
+                delegate?.btDidDiscoverDevice(name: name, identifier: peripheral.identifier, rssi: RSSI.intValue, advertisementData: advertisementData)
             } else {
                 print("Skipping non-cycling device: \(name)")
             }
         } else {
+            // Some devices might not advertise services in the broad packet, but we might want them.
+            // For now, adhere to strict filter to avoid noise, but maybe allow if name matches known devices?
             print("No service UUIDs in advertisement data for: \(name)")
+            
+            // Allow if name contains "Treadmill" or similar? For now, stick to UUID check as per original logic implies.
+            // But if we want to be permissive:
+            // delegate?.btDidDiscoverDevice(name: name, identifier: peripheral.identifier, rssi: RSSI.intValue, advertisementData: advertisementData)
         }
     }
 

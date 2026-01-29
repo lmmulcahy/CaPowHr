@@ -316,7 +316,7 @@ final class BLELogCaptureViewModel: NSObject, ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             guard let self else { return }
             self.state = .connecting
-            self.workoutManager.startScanningForTesting()
+            self.workoutManager.startScanning()
             self.updateConnectedDevices(self.workoutManager.connectedDevices)
         }
     }

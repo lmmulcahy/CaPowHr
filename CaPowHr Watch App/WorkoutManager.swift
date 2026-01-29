@@ -7,6 +7,14 @@
 
 import Foundation
 import HealthKit
+import CoreBluetooth
+
+struct ScannedDevice: Identifiable, Hashable {
+    let id: UUID
+    let name: String
+    let rssi: Int
+    var iconName: String
+}
 
 enum HeartRateSource: String, CaseIterable {
     case auto = "auto"
@@ -38,7 +46,12 @@ class WorkoutManager: NSObject, ObservableObject {
     @Published var lastErrorMessage: String? = nil
     @Published var showingErrorAlert: Bool = false
     @Published var alertTitle: String? = nil
+
     @Published var pendingDisplayOnlyStart: Bool = false
+    
+    // MARK: - Discovery
+    @Published var scannedDevices: [ScannedDevice] = []
+    @Published var isScanning: Bool = false
     
     // MARK: - Treadmill-specific Properties
     @Published var detectedDeviceType: FitnessDeviceType = .unknown
@@ -304,16 +317,26 @@ class WorkoutManager: NSObject, ObservableObject {
     // Workout timing handled by WorkoutTimer
     
     // MARK: - Bluetooth Scanning
-    func startScanningForTesting() {
+    func startScanning() {
+        scannedDevices.removeAll() // Clear old results
+        isScanning = true
         bluetoothManager.startScanning()
     }
     
-    func disconnectSensors() {
+    func stopScanning() {
+        isScanning = false
         bluetoothManager.stopScanning()
-        bluetoothManager.disconnectAll()
     }
     
-
+    func connect(to device: ScannedDevice) {
+        bluetoothManager.connect(to: device.id)
+        isScanning = false // Manager stops scanning on connect, but update UI state
+    }
+    
+    func disconnectSensors() {
+        stopScanning()
+        bluetoothManager.disconnectAll()
+    }
     
     private func disconnectAllPeripherals() {
         // Delegated to BluetoothManager
@@ -326,8 +349,53 @@ class WorkoutManager: NSObject, ObservableObject {
 
 // MARK: - BluetoothManagerDelegate
 extension WorkoutManager: BluetoothManagerDelegate {
-    func btDidDiscoverCyclingDevice(name: String) {
-        print("Found cycling device: \(name)")
+    func btDidDiscoverDevice(name: String, identifier: UUID, rssi: Int, advertisementData: [String: Any]) {
+        // Guess icon
+        var icon = "sensor.fill" // Default
+        
+        // 1. Check Service UUIDs
+        if let services = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] {
+            if services.contains(CBUUID(string: "1816")) || services.contains(CBUUID(string: "1818")) {
+                icon = "bicycle"
+            } else if services.contains(CBUUID(string: "1826")) {
+                 // FTMS. Try to guess from name if mostly generic.
+                 icon = "figure.mixed.cardio"
+            }
+        }
+        
+        // 2. Refine by Name
+        let n = name.lowercased()
+        if n.contains("treadmill") || n.contains("runner") { icon = "figure.run" }
+        else if n.contains("bike") || n.contains("cycle") || n.contains("trainer") { icon = "bicycle" }
+        else if n.contains("rower") || n.contains("water") || n.contains("row") { icon = "oar.2.crossed" }
+
+        // 3. Refine by Service Data (if we want to try parsing the byte)
+        // FTMS Service Data = 0x1826. If present.
+        if let serviceData = advertisementData[CBAdvertisementDataServiceDataKey] as? [CBUUID: Data],
+           let ftmsData = serviceData[CBUUID(string: "1826")] {
+            // Byte 0 = Flags, Bytes 1-2 = Machine Type (Little Endian?)
+            // If length >= 3
+            if ftmsData.count >= 3 {
+               // Bit 0: Treadmill
+               // Bit 1: Elliptical
+               // Bit 3: Rower
+               // Bit 5: Bike (Step Climber=5? No, Bike is not in that simple list always, wait. 
+               // Looking up "Fitness Machine Type" characteristic bitfield vs Advertising.
+               // Actually the Advertising Data for FTMS usually contains "Machine Type" field directly if it follows the format.
+               // Let's rely on name/primary service for now to avoid complexity in this file.
+            }
+        }
+        
+        let device = ScannedDevice(id: identifier, name: name, rssi: rssi, iconName: icon)
+        
+        DispatchQueue.main.async {
+            // Update existing or append
+            if let idx = self.scannedDevices.firstIndex(where: { $0.id == identifier }) {
+                self.scannedDevices[idx] = device
+            } else {
+                self.scannedDevices.append(device)
+            }
+        }
     }
     
     func btDidConnect(to name: String) {

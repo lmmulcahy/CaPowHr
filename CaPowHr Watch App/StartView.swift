@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct StartView: View {
+    @State private var showingScanSheet = false
     @ObservedObject var workoutManager: WorkoutManager
     @ObservedObject var stravaAuthManager: StravaAuthManager
     @ObservedObject var stravaUploader: StravaUploader
@@ -55,10 +56,48 @@ struct StartView: View {
             
             if workoutManager.connectedDevices.isEmpty {
                 Button("Connect Sensors") {
-                    workoutManager.startScanningForTesting()
+                    showingScanSheet = true
                 }
                 .font(.subheadline)
                 .foregroundColor(.blue)
+                .sheet(isPresented: $showingScanSheet) {
+                    List {
+                        Section(header: Text("Available Devices")) {
+                            if workoutManager.scannedDevices.isEmpty {
+                                HStack {
+                                    ProgressView()
+                                    Text("Scanning...")
+                                        .foregroundColor(.secondary)
+                                }
+                            } else {
+                                ForEach(workoutManager.scannedDevices) { device in
+                                    Button {
+                                        workoutManager.connect(to: device)
+                                        showingScanSheet = false
+                                    } label: {
+                                        HStack {
+                                            Image(systemName: device.iconName)
+                                                .foregroundColor(.accentColor)
+                                            VStack(alignment: .leading) {
+                                                Text(device.name)
+                                                    .font(.body)
+                                                Text("Signal: \(device.rssi)")
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .onAppear {
+                        workoutManager.startScanning()
+                    }
+                    .onDisappear {
+                        workoutManager.stopScanning()
+                    }
+                }
             } else {
                 Button("Disconnect \(workoutManager.connectedDevices.joined(separator: ", "))") {
                     workoutManager.disconnectSensors()
