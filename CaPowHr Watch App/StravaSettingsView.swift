@@ -22,8 +22,8 @@ struct StravaSettingsView: View {
                     syncToggleSection
                 }
                 
-                // Connect/Disconnect Button
-                connectionButton
+                // Connect/Disconnect Buttons
+                connectionButtons
                 
                 Spacer()
             }
@@ -49,6 +49,16 @@ struct StravaSettingsView: View {
                 Text("Hi, \(name)!")
                     .font(.caption)
                     .foregroundColor(.secondary)
+            }
+            
+            if authManager.isWaitingForiPhone {
+                HStack(spacing: 4) {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    Text("Check your iPhone...")
+                        .font(.caption2)
+                        .foregroundColor(.orange)
+                }
             }
             
             if let error = authManager.authError {
@@ -78,13 +88,25 @@ struct StravaSettingsView: View {
         .padding(.horizontal, 4)
     }
     
-    // MARK: - Connection Button
+    // MARK: - Connection Buttons
     
-    private var connectionButton: some View {
+    private var connectionButtons: some View {
         Group {
-            if authManager.isAuthenticating {
-                ProgressView()
-                    .progressViewStyle(CircularProgressViewStyle())
+            if authManager.isAuthenticating || authManager.isWaitingForiPhone {
+                VStack(spacing: 8) {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle())
+                    
+                    if authManager.isWaitingForiPhone {
+                        Button {
+                            authManager.isWaitingForiPhone = false
+                        } label: {
+                            Text("Cancel")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
             } else if authManager.isAuthenticated {
                 Button(role: .destructive) {
                     authManager.logout()
@@ -98,17 +120,33 @@ struct StravaSettingsView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
             } else {
-                Button {
-                    authManager.authenticate()
-                } label: {
-                    HStack {
-                        Image(systemName: "link")
-                        Text("Connect to Strava")
+                VStack(spacing: 10) {
+                    // Primary: Connect via iPhone
+                    Button {
+                        authManager.authenticateViaiPhone()
+                    } label: {
+                        HStack {
+                            Image(systemName: "iphone")
+                            Text("Connect via iPhone")
+                        }
+                        .font(.footnote)
                     }
-                    .font(.footnote)
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+                    
+                    // Secondary: Connect on Watch (harder to use)
+                    Button {
+                        authManager.authenticateOnWatch()
+                    } label: {
+                        HStack {
+                            Image(systemName: "applewatch")
+                            Text("Connect on Watch")
+                        }
+                        .font(.caption2)
+                    }
+                    .buttonStyle(.bordered)
+                    .foregroundColor(.secondary)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.orange)
             }
         }
     }

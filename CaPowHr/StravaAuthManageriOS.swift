@@ -1,46 +1,28 @@
 //
-//  StravaAuthManager.swift
-//  CaPowHr Watch App
+//  StravaAuthManageriOS.swift
+//  CaPowHr
 //
-//  Handles OAuth 2.0 authentication with Strava.
-//  Supports receiving tokens from iOS companion app via WatchConnectivity.
+//  Handles Strava OAuth authentication on iOS and syncs tokens to watchOS.
 //
 
 import Foundation
 import AuthenticationServices
-import WatchConnectivity
 
 @MainActor
-final class StravaAuthManager: NSObject, ObservableObject {
+final class StravaAuthManageriOS: NSObject, ObservableObject {
     @Published var isAuthenticated: Bool = false
     @Published var isAuthenticating: Bool = false
     @Published var authError: String? = nil
     @Published var athleteName: String? = nil
-    @Published var isWaitingForiPhone: Bool = false
-    @Published var iPhoneReachable: Bool = false
+    @Published var syncedToWatch: Bool = false
     
     private let keychain = KeychainStore.shared()
     private var webAuthSession: ASWebAuthenticationSession?
     
     override init() {
         super.init()
-        setupWatchConnectivity()
         Task {
             checkAuthenticationStatus()
-        }
-    }
-    
-    // MARK: - WatchConnectivity Setup
-    
-    private func setupWatchConnectivity() {
-        WatchConnectivityManager.shared.delegate = self
-        WatchConnectivityManager.shared.activate()
-        
-        // Observe reachability changes
-        Task {
-            for await _ in NotificationCenter.default.notifications(named: .init("WCReachabilityChanged")) {
-                iPhoneReachable = WatchConnectivityManager.shared.counterpartReachable
-            }
         }
     }
     
@@ -78,6 +60,7 @@ final class StravaAuthManager: NSObject, ObservableObject {
     }
     
     private func loadAthleteName() {
+        // Try to read athlete name from keychain (stored separately)
         do {
             if let name = try keychain.readString(account: "strava_athlete_name") {
                 athleteName = name
@@ -87,27 +70,7 @@ final class StravaAuthManager: NSObject, ObservableObject {
         }
     }
     
-    /// Request iPhone to start authentication (preferred method)
-    func authenticateViaiPhone() {
-        guard !isAuthenticating && !isWaitingForiPhone else { return }
-        
-        authError = nil
-        isWaitingForiPhone = true
-        
-        WatchConnectivityManager.shared.requestAuthFromiPhone()
-        
-        // Set a timeout
-        Task {
-            try? await Task.sleep(for: .seconds(60))
-            if isWaitingForiPhone {
-                isWaitingForiPhone = false
-                authError = "iPhone didn't respond. Try opening the CaPowHr app on your iPhone."
-            }
-        }
-    }
-    
-    /// Authenticate directly on watch (fallback)
-    func authenticateOnWatch() {
+    func authenticate() {
         guard !isAuthenticating else { return }
         isAuthenticating = true
         authError = nil
@@ -164,17 +127,9 @@ final class StravaAuthManager: NSObject, ObservableObject {
             }
         }
         
+        webAuthSession?.presentationContextProvider = self
         webAuthSession?.prefersEphemeralWebBrowserSession = false
         webAuthSession?.start()
-    }
-    
-    /// Legacy authenticate method - now uses iPhone by default
-    func authenticate() {
-        if WatchConnectivityManager.shared.counterpartReachable {
-            authenticateViaiPhone()
-        } else {
-            authenticateOnWatch()
-        }
     }
     
     func logout() {
@@ -186,20 +141,40 @@ final class StravaAuthManager: NSObject, ObservableObject {
             try keychain.delete(account: "strava_athlete_name")
             isAuthenticated = false
             athleteName = nil
+            syncedToWatch = false
         } catch {
             print("Error clearing tokens: \(error)")
         }
     }
     
-    func getAccessToken() async -> String? {
-        // Check if we need to refresh
-        await refreshTokenIfNeeded()
+    /// Manually sync tokens to watch
+    func syncToWatch() {
+        guard isAuthenticated else { return }
         
         do {
-            return try keychain.readString(account: StravaConfig.accessTokenKey)
+            guard let accessToken = try keychain.readString(account: StravaConfig.accessTokenKey),
+                  let refreshToken = try keychain.readString(account: StravaConfig.refreshTokenKey),
+                  let expiresAtString = try keychain.readString(account: StravaConfig.expiresAtKey),
+                  let expiresAt = Double(expiresAtString) else {
+                print("Missing tokens for sync")
+                return
+            }
+            
+            let athleteId = try keychain.readString(account: StravaConfig.athleteIdKey)
+            let athleteName = try keychain.readString(account: "strava_athlete_name")
+            
+            WatchConnectivityManager.shared.sendTokensToWatch(
+                accessToken: accessToken,
+                refreshToken: refreshToken,
+                expiresAt: expiresAt,
+                athleteId: athleteId,
+                athleteName: athleteName
+            )
+            
+            syncedToWatch = true
+            
         } catch {
-            print("Error reading access token: \(error)")
-            return nil
+            print("Error syncing to watch: \(error)")
         }
     }
     
@@ -234,6 +209,9 @@ final class StravaAuthManager: NSObject, ObservableObject {
             
             try parseAndStoreTokenResponse(data: data)
             isAuthenticated = true
+            
+            // Automatically sync to watch after successful auth
+            syncToWatch()
             
         } catch {
             authError = "Token exchange failed: \(error.localizedDescription)"
@@ -287,6 +265,9 @@ final class StravaAuthManager: NSObject, ObservableObject {
             try parseAndStoreTokenResponse(data: data)
             isAuthenticated = true
             
+            // Sync refreshed tokens to watch
+            syncToWatch()
+            
         } catch {
             print("Error refreshing token: \(error)")
             isAuthenticated = false
@@ -321,11 +302,24 @@ final class StravaAuthManager: NSObject, ObservableObject {
     }
 }
 
+// MARK: - ASWebAuthenticationPresentationContextProviding
+
+extension StravaAuthManageriOS: ASWebAuthenticationPresentationContextProviding {
+    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = scene.windows.first else {
+            return ASPresentationAnchor()
+        }
+        return window
+    }
+}
+
 // MARK: - WatchConnectivityDelegate
 
-extension StravaAuthManager: WatchConnectivityDelegate {
+extension StravaAuthManageriOS: WatchConnectivityDelegate {
     func watchConnectivityDidRequestStravaAuth() {
-        // This is called on iOS, not relevant for watch
+        // Watch requested auth - start the OAuth flow on iOS
+        authenticate()
     }
     
     func watchConnectivityDidReceiveTokens(
@@ -335,10 +329,8 @@ extension StravaAuthManager: WatchConnectivityDelegate {
         athleteId: String?,
         athleteName: String?
     ) {
-        // Received tokens from iPhone!
-        isWaitingForiPhone = false
-        isAuthenticating = false
-        
+        // iOS received tokens (unusual flow - normally iOS sends to watch)
+        // But handle it for completeness
         do {
             try keychain.upsertString(accessToken, account: StravaConfig.accessTokenKey)
             try keychain.upsertString(refreshToken, account: StravaConfig.refreshTokenKey)
@@ -353,11 +345,8 @@ extension StravaAuthManager: WatchConnectivityDelegate {
             }
             
             isAuthenticated = true
-            print("[Watch] Successfully received and stored tokens from iPhone")
-            
         } catch {
-            print("[Watch] Error storing received tokens: \(error)")
-            authError = "Failed to store tokens: \(error.localizedDescription)"
+            print("Error storing received tokens: \(error)")
         }
     }
 }
