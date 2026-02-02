@@ -350,39 +350,51 @@ class WorkoutManager: NSObject, ObservableObject {
 // MARK: - BluetoothManagerDelegate
 extension WorkoutManager: BluetoothManagerDelegate {
     func btDidDiscoverDevice(name: String, identifier: UUID, rssi: Int, advertisementData: [String: Any]) {
-        // Guess icon
+        // Determine icon based on advertised services and FTMS machine type data
         var icon = "sensor.fill" // Default
         
-        // 1. Check Service UUIDs
+        // 1. Check Service UUIDs for basic classification
         if let services = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] {
             if services.contains(CBUUID(string: "1816")) || services.contains(CBUUID(string: "1818")) {
+                // Cycling Speed & Cadence (0x1816) or Cycling Power (0x1818)
                 icon = "bicycle"
             } else if services.contains(CBUUID(string: "1826")) {
-                 // FTMS. Try to guess from name if mostly generic.
-                 icon = "figure.mixed.cardio"
+                // FTMS (Fitness Machine Service) - set a fallback, will be refined below
+                icon = "figure.mixed.cardio"
             }
         }
         
-        // 2. Refine by Name
-        let n = name.lowercased()
-        if n.contains("treadmill") || n.contains("runner") { icon = "figure.run" }
-        else if n.contains("bike") || n.contains("cycle") || n.contains("trainer") { icon = "bicycle" }
-        else if n.contains("rower") || n.contains("water") || n.contains("row") { icon = "oar.2.crossed" }
-
-        // 3. Refine by Service Data (if we want to try parsing the byte)
-        // FTMS Service Data = 0x1826. If present.
+        // 2. Parse FTMS Service Data for machine type (preferred method)
+        // FTMS advertisement data format: Byte 0 = Flags, Bytes 1-2 = Fitness Machine Type (little-endian bitfield)
+        // Bit definitions for Fitness Machine Type:
+        //   Bit 0: Treadmill Supported
+        //   Bit 1: Cross Trainer Supported
+        //   Bit 2: Step Climber Supported
+        //   Bit 3: Stair Climber Supported
+        //   Bit 4: Rower Supported
+        //   Bit 5: Indoor Bike Supported
         if let serviceData = advertisementData[CBAdvertisementDataServiceDataKey] as? [CBUUID: Data],
-           let ftmsData = serviceData[CBUUID(string: "1826")] {
-            // Byte 0 = Flags, Bytes 1-2 = Machine Type (Little Endian?)
-            // If length >= 3
-            if ftmsData.count >= 3 {
-               // Bit 0: Treadmill
-               // Bit 1: Elliptical
-               // Bit 3: Rower
-               // Bit 5: Bike (Step Climber=5? No, Bike is not in that simple list always, wait. 
-               // Looking up "Fitness Machine Type" characteristic bitfield vs Advertising.
-               // Actually the Advertising Data for FTMS usually contains "Machine Type" field directly if it follows the format.
-               // Let's rely on name/primary service for now to avoid complexity in this file.
+           let ftmsData = serviceData[CBUUID(string: "1826")],
+           ftmsData.count >= 3 {
+            // Extract machine type as little-endian UInt16 from bytes 1-2
+            let machineType = UInt16(ftmsData[1]) | (UInt16(ftmsData[2]) << 8)
+            
+            // Check bits in priority order (most specific first)
+            if (machineType & 0x0001) != 0 {
+                // Bit 0: Treadmill
+                icon = "figure.run"
+            } else if (machineType & 0x0010) != 0 {
+                // Bit 4: Rower
+                icon = "oar.2.crossed"
+            } else if (machineType & 0x0020) != 0 {
+                // Bit 5: Indoor Bike
+                icon = "bicycle"
+            } else if (machineType & 0x0002) != 0 {
+                // Bit 1: Cross Trainer (elliptical)
+                icon = "figure.elliptical"
+            } else if (machineType & 0x000C) != 0 {
+                // Bits 2-3: Step Climber or Stair Climber
+                icon = "figure.stairs"
             }
         }
         
