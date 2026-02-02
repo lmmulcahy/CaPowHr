@@ -345,6 +345,16 @@ class WorkoutManager: NSObject, ObservableObject {
     }
     
     // Sample writes are delegated to HealthKitManager
+    
+    /// Routes distance samples to the correct HealthKit type based on the current workout.
+    private func addDistanceSampleForCurrentWorkout(_ meters: Double, start: Date, end: Date) {
+        switch currentWorkoutType {
+        case .indoorRun, .indoorWalk:
+            hkManager.addWalkingRunningDistanceSample(meters, start: start, end: end)
+        case .indoorCycle, .indoorRow:
+            hkManager.addDistanceSample(meters, start: start, end: end)
+        }
+    }
 }
 
 // MARK: - BluetoothManagerDelegate
@@ -469,7 +479,7 @@ extension WorkoutManager: BluetoothManagerDelegate {
 
         // Update the UI-facing cumulative distance and write HealthKit delta samples.
         DispatchQueue.main.async { self.distanceMeters += sample.deltaMeters }
-        hkManager.addDistanceSample(sample.deltaMeters, start: sample.start, end: sample.end)
+        addDistanceSampleForCurrentWorkout(sample.deltaMeters, start: sample.start, end: sample.end)
     }
     
     func btDidUpdateTotalDistance(meters: Double) {
@@ -481,7 +491,7 @@ extension WorkoutManager: BluetoothManagerDelegate {
         if let lastTime = lastDistanceUpdateTime {
             let delta = meters - lastDistanceMetersSaved
             if delta > 0 {
-                hkManager.addDistanceSample(delta, start: lastTime, end: now)
+                addDistanceSampleForCurrentWorkout(delta, start: lastTime, end: now)
                 let dt = now.timeIntervalSince(lastTime)
                 if dt > 0 { DispatchQueue.main.async { self.cyclingSpeedMps = delta / dt } }
                 lastDistanceMetersSaved = meters
@@ -599,7 +609,7 @@ extension WorkoutManager: BluetoothManagerDelegate {
         // The delta is still correct; the time window just reflects arrival cadence.
         let end = Date()
         let start = end.addingTimeInterval(-1)
-        hkManager.addDistanceSample(deltaMeters, start: start, end: end)
+        addDistanceSampleForCurrentWorkout(deltaMeters, start: start, end: end)
     }
 
     func btDidUpdateTreadmill(_ treadmill: TreadmillData) {
