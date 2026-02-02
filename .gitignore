@@ -2,4 +2,83 @@
 Secrets.xcconfig
 Config/Secrets.xcconfig
 
+# Xcode
+#
+# gitignore contributors: remember to update Global/Xcode.gitignore, Objective-C.gitignore & Swift.gitignore
 
+## User settings
+xcuserdata/
+
+## compatibility with Xcode 8 and earlier (ignoring not required starting Xcode 9)
+*.mode1v3
+*.mode2v3
+*.pbuser
+*.perspectivev3
+*.xcworkspace/xcuserdata/
+*.xccheckout
+*.moved-aside
+DerivedData
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+## Obj-C/Swift specific
+*.hmap
+
+## App packaging
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+## Playgrounds
+timeline.xctimeline
+playground.xcworkspace
+
+## Swift Package Manager
+# Add this line if you want to avoid checking in your Package.resolved file
+# Package.resolved
+.build/
+
+## CocoaPods
+# We recommend against adding the Pods directory to your .gitignore. However
+# you should judge for yourself, the pros and cons are mentioned at:
+# https://guides.cocoapods.org/using/using-cocoapods.html#checking-in-the-pods-directory
+# Pods/
+# Carthage
+# Carthage/Build
+
+## Accio dependency management
+Dependencies/
+.accio/
+
+## fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+
+## Code Injection
+# After changing a source file, InjectionIII auto recompiles the file to
+# /Users/user/Library/Developer/Xcode/DerivedData/InjectionProject-.../Build/Intermediates.noindex/InjectionProject.build/Debug/InjectionProject.build/Objects-normal/x86_64/File.swiftdeps
+# This path is not inside the project folder, so it is not ignored by default.
+# But if you want to keep your project folder clean, you can add this line:
+# *
+
+## Xcode Patch
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+!*.xcodeproj/project.xcworkspace/
+!*.xcworkspace/contents.xcworkspacedata
+/*.gcno
+
+## Documentation
+# docs/
+
+## Build generated
+build/
+DerivedData/
+
+## OS X
+.DS_Store
