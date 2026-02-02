@@ -52,25 +52,27 @@ struct SettingsView: View {
                     }
                 }
                 
-                // Strava Integration
-                NavigationLink {
-                    StravaSettingsView(
-                        authManager: stravaAuthManager,
-                        uploader: stravaUploader
-                    )
-                } label: {
-                    HStack {
-                        Image(systemName: "figure.run.circle")
-                            .foregroundColor(.orange)
-                        Text("Strava")
-                        Spacer()
-                        if stravaAuthManager.isAuthenticated {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                                .font(.caption)
+                if FeatureFlags.showStravaIntegration {
+                    // Strava Integration
+                    NavigationLink {
+                        StravaSettingsView(
+                            authManager: stravaAuthManager,
+                            uploader: stravaUploader
+                        )
+                    } label: {
+                        HStack {
+                            Image(systemName: "figure.run.circle")
+                                .foregroundColor(.orange)
+                            Text("Strava")
+                            Spacer()
+                            if stravaAuthManager.isAuthenticated {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                    .font(.caption)
+                            }
                         }
+                        .font(.footnote)
                     }
-                    .font(.footnote)
                 }
                 
                 Spacer()
