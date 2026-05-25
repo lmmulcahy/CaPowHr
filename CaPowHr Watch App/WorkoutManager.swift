@@ -359,23 +359,81 @@ class WorkoutManager: NSObject, ObservableObject {
 
 // MARK: - BluetoothManagerDelegate
 extension WorkoutManager: BluetoothManagerDelegate {
+    /// EMA factor for displayed RSSI. New samples get this weight; previous smoothed value gets (1 - alpha).
+    /// Picked to track real signal-strength changes within ~1s while damping advert-to-advert jitter
+    /// so rows in the picker don't swap on every packet.
+    private static let rssiSmoothingAlpha: Double = 0.3
+
     func btDidDiscoverDevice(name: String, identifier: UUID, rssi: Int, advertisementData: [String: Any]) {
-        // Determine icon based on advertised services and FTMS machine type data
+        let derivedIcon = Self.iconForAdvertisement(advertisementData)
+
+        DispatchQueue.main.async {
+            if let idx = self.scannedDevices.firstIndex(where: { $0.id == identifier }) {
+                let prev = self.scannedDevices[idx]
+
+                // Smooth RSSI so the displayed signal tracks reality but row order is stable.
+                let alpha = Self.rssiSmoothingAlpha
+                let smoothedRSSI = Int((Double(prev.rssi) * (1.0 - alpha) + Double(rssi) * alpha).rounded())
+
+                // Don't downgrade a more-specific icon (e.g., "figure.run") to a generic one
+                // ("sensor.fill" / "figure.mixed.cardio") just because this particular advert
+                // packet happened to omit FTMS service data. BLE devices commonly rotate
+                // between adv packets and scan responses, and only one of them carries the
+                // full FTMS service data.
+                let nextIcon = Self.iconSpecificity(derivedIcon) >= Self.iconSpecificity(prev.iconName)
+                    ? derivedIcon
+                    : prev.iconName
+
+                self.scannedDevices[idx] = ScannedDevice(
+                    id: identifier,
+                    name: name,
+                    rssi: smoothedRSSI,
+                    iconName: nextIcon
+                )
+            } else {
+                self.scannedDevices.append(
+                    ScannedDevice(id: identifier, name: name, rssi: rssi, iconName: derivedIcon)
+                )
+            }
+
+            // Strongest signal first (RSSI is negative; less negative = stronger).
+            // Tie-break on UUID so rows with identical smoothed RSSI don't swap on every update.
+            self.scannedDevices.sort { lhs, rhs in
+                if lhs.rssi != rhs.rssi { return lhs.rssi > rhs.rssi }
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+        }
+    }
+
+    /// Higher = more confident classification. Used to avoid replacing a specific icon with
+    /// a generic one when a later advert packet doesn't include FTMS service data.
+    private static func iconSpecificity(_ icon: String) -> Int {
+        switch icon {
+        case "sensor.fill": return 0          // unknown
+        case "figure.mixed.cardio": return 1  // generic FTMS
+        default: return 2                     // specific machine type
+        }
+    }
+
+    /// Derive a SF Symbol name from an advertisement packet. Returns the most specific icon
+    /// the packet supports; callers should prefer the highest-specificity icon seen so far.
+    private static func iconForAdvertisement(_ advertisementData: [String: Any]) -> String {
         var icon = "sensor.fill" // Default
-        
-        // 1. Check Service UUIDs for basic classification
+
+        // 1. Check Service UUIDs for basic classification.
         if let services = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] {
-            if services.contains(CBUUID(string: "1816")) || services.contains(CBUUID(string: "1818")) {
-                // Cycling Speed & Cadence (0x1816) or Cycling Power (0x1818)
+            if services.contains(BluetoothUUIDs.Service.cyclingSpeedCadence) ||
+               services.contains(BluetoothUUIDs.Service.cyclingPower) {
                 icon = "bicycle"
-            } else if services.contains(CBUUID(string: "1826")) {
-                // FTMS (Fitness Machine Service) - set a fallback, will be refined below
+            } else if services.contains(BluetoothUUIDs.Service.fitnessMachine) {
+                // FTMS - fallback before service-data parse below may refine it.
                 icon = "figure.mixed.cardio"
             }
         }
-        
-        // 2. Parse FTMS Service Data for machine type (preferred method)
-        // FTMS advertisement data format: Byte 0 = Flags, Bytes 1-2 = Fitness Machine Type (little-endian bitfield)
+
+        // 2. Parse FTMS Service Data for machine type (preferred method).
+        // FTMS v1.0 advertisement data format: Byte 0 = Flags, Bytes 1-2 = Fitness Machine Type
+        // (little-endian bitfield).
         // Bit definitions for Fitness Machine Type:
         //   Bit 0: Treadmill Supported
         //   Bit 1: Cross Trainer Supported
@@ -384,40 +442,25 @@ extension WorkoutManager: BluetoothManagerDelegate {
         //   Bit 4: Rower Supported
         //   Bit 5: Indoor Bike Supported
         if let serviceData = advertisementData[CBAdvertisementDataServiceDataKey] as? [CBUUID: Data],
-           let ftmsData = serviceData[CBUUID(string: "1826")],
+           let ftmsData = serviceData[BluetoothUUIDs.Service.fitnessMachine],
            ftmsData.count >= 3 {
-            // Extract machine type as little-endian UInt16 from bytes 1-2
             let machineType = UInt16(ftmsData[1]) | (UInt16(ftmsData[2]) << 8)
-            
-            // Check bits in priority order (most specific first)
+
+            // Check bits in priority order (most specific first).
             if (machineType & 0x0001) != 0 {
-                // Bit 0: Treadmill
-                icon = "figure.run"
+                icon = "figure.run"           // Treadmill
             } else if (machineType & 0x0010) != 0 {
-                // Bit 4: Rower
-                icon = "oar.2.crossed"
+                icon = "oar.2.crossed"        // Rower
             } else if (machineType & 0x0020) != 0 {
-                // Bit 5: Indoor Bike
-                icon = "bicycle"
+                icon = "bicycle"              // Indoor Bike
             } else if (machineType & 0x0002) != 0 {
-                // Bit 1: Cross Trainer (elliptical)
-                icon = "figure.elliptical"
+                icon = "figure.elliptical"    // Cross Trainer
             } else if (machineType & 0x000C) != 0 {
-                // Bits 2-3: Step Climber or Stair Climber
-                icon = "figure.stairs"
+                icon = "figure.stairs"        // Step / Stair Climber
             }
         }
-        
-        let device = ScannedDevice(id: identifier, name: name, rssi: rssi, iconName: icon)
-        
-        DispatchQueue.main.async {
-            // Update existing or append
-            if let idx = self.scannedDevices.firstIndex(where: { $0.id == identifier }) {
-                self.scannedDevices[idx] = device
-            } else {
-                self.scannedDevices.append(device)
-            }
-        }
+
+        return icon
     }
     
     func btDidConnect(to name: String) {

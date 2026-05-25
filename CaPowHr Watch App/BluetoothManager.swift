@@ -45,7 +45,9 @@ enum BluetoothUUIDs {
 // Notes on watchOS/CoreBluetooth behavior that inform the design:
 // - You must keep a strong reference to CBPeripheral while connecting/connected to avoid API MISUSE
 // - Scanning while connecting can delay or interfere with connections; we stop scanning before connect
-// - Some peripherals rotate advertisements; we disable duplicates to reduce log spam
+// - We allow duplicate advertisement callbacks so the device picker can show a live RSSI per peripheral.
+//   The list view uses smoothed RSSI to keep rows from jittering. Scanning is bounded to the picker's
+//   lifecycle (and brief auto-restart windows after disconnect/fail), so the extra callbacks are cheap.
 
 /// Delegate for receiving device lifecycle events and parsed sensor updates.
 /// Implemented by higher-level coordinators (e.g., WorkoutManager).
@@ -143,8 +145,10 @@ final class BluetoothManager: NSObject {
         BluetoothLogManager.shared.logScanStart()
         // Phase 1: broad scan for any peripheral (no service filter)
         // We will filter in didDiscover.
+        // AllowDuplicatesKey: true lets every advertisement through so the picker can show a
+        // live (smoothed) RSSI per peripheral instead of a frozen first-seen value.
         discoveredPeripheralsDict.removeAll()
-        centralManager.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
+        centralManager.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: true])
         // After a short window, narrow to cycling services to reduce noise
         DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
             guard let self = self else { return }
@@ -153,7 +157,7 @@ final class BluetoothManager: NSObject {
                 self.centralManager.stopScan()
                 self.centralManager.scanForPeripherals(
                     withServices: BluetoothUUIDs.Service.allCycling,
-                    options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
+                    options: [CBCentralManagerScanOptionAllowDuplicatesKey: true]
                 )
             }
         }
