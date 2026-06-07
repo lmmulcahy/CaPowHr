@@ -6,13 +6,12 @@ struct SaveDiscardView: View {
     
     var body: some View {
         ZStack {
-            // Processing indicator - overlaid when processing
-            if workoutManager.isEndingCollection || stravaUploader.isUploading {
+            if workoutManager.isEndingCollection || workoutManager.isSavingWorkout || stravaUploader.isUploading {
                 VStack(spacing: 8) {
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle())
                         .scaleEffect(1.2)
-                    Text(stravaUploader.isUploading ? "Uploading to Strava..." : "Processing workout...")
+                    Text(statusText)
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -20,58 +19,60 @@ struct SaveDiscardView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             
-            // Buttons - always in the hierarchy, but disabled when processing
-            VStack(spacing: 8) {
-                // Top discard button
-                Button("Discard Workout") {
-                    stravaUploader.resetStatus()
-                    workoutManager.discardCurrentWorkout()
-                }
-                .font(.headline)
-                .fontWeight(.bold)
-                .foregroundColor(.red)
-                .disabled(workoutManager.isEndingCollection || stravaUploader.isUploading)
-                
-                // Strava status indicator
-                if stravaUploader.lastUploadSuccess {
-                    HStack(spacing: 4) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                        Text("Uploaded to Strava")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
+            if !workoutManager.isSavingWorkout {
+                VStack(spacing: 8) {
+                    Button("Discard Workout") {
+                        stravaUploader.resetStatus()
+                        workoutManager.discardCurrentWorkout()
                     }
-                } else if let error = stravaUploader.lastUploadError {
-                    HStack(spacing: 4) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundColor(.orange)
-                        Text(error)
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                            .lineLimit(2)
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(.red)
+                    .disabled(workoutManager.isEndingCollection || stravaUploader.isUploading)
+                    
+                    if stravaUploader.lastUploadSuccess {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("Uploaded to Strava")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    } else if let error = stravaUploader.lastUploadError {
+                        HStack(spacing: 4) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                            Text(error)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .lineLimit(2)
+                        }
                     }
+                    
+                    Spacer(minLength: 12)
+                    
+                    Button("Save Workout") {
+                        saveWorkoutAndUploadToStrava()
+                    }
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(.green)
+                    .disabled(workoutManager.isEndingCollection || stravaUploader.isUploading)
                 }
-                
-                Spacer(minLength: 12)
-                
-                // Bottom save button
-                Button("Save Workout") {
-                    saveWorkoutAndUploadToStrava()
-                }
-                .font(.headline)
-                .fontWeight(.bold)
-                .foregroundColor(.green)
-                .disabled(workoutManager.isEndingCollection || stravaUploader.isUploading)
+                .frame(maxHeight: .infinity, alignment: .top)
+                .padding(.vertical, 6)
             }
-            .frame(maxHeight: .infinity, alignment: .top)
-            .padding(.vertical, 6)
-            .opacity(workoutManager.isEndingCollection || stravaUploader.isUploading ? 0 : 1)
         }
+    }
+
+    private var statusText: String {
+        if stravaUploader.isUploading { return "Uploading to Strava..." }
+        if workoutManager.isSavingWorkout { return "Saving workout..." }
+        return "Processing workout..."
     }
     
     private func saveWorkoutAndUploadToStrava() {
-        // Capture workout data before saving (save clears the data)
-        let uploadData = WorkoutUploadData(
+        let uploadData = workoutManager.workoutSummary?.uploadData ?? WorkoutUploadData(
             workoutType: workoutManager.currentWorkoutType,
             startDate: Date().addingTimeInterval(-workoutManager.workoutDuration),
             durationSeconds: workoutManager.workoutDuration,
@@ -81,10 +82,8 @@ struct SaveDiscardView: View {
             averageCadence: workoutManager.cyclingCadence > 0 ? workoutManager.cyclingCadence : nil
         )
         
-        // Save to HealthKit first
         workoutManager.confirmSaveWorkout()
         
-        // Then upload to Strava
         Task {
             await stravaUploader.uploadWorkout(uploadData)
         }
@@ -95,8 +94,8 @@ struct SaveDiscardView: View {
 #Preview {
     let wm = WorkoutManager()
     wm.isAwaitingSave = true
-    wm.workoutDuration = 1800  // 30 minutes
-    wm.distanceMeters = 10000  // 10 km
+    wm.workoutDuration = 1800
+    wm.distanceMeters = 10000
     let authManager = StravaAuthManager()
     return SaveDiscardView(
         workoutManager: wm,
@@ -104,6 +103,3 @@ struct SaveDiscardView: View {
     )
 }
 #endif
-
-
-

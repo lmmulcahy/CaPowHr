@@ -10,6 +10,7 @@
 		19B1A0C82E78FB0D003B71A0 /* CaPowHr Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 19B1A0C72E78FB0D003B71A0 /* CaPowHr Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		19B1A0F72E78FB0E003B71A0 /* HealthKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 19B1A0F92E78FB0E003B71A0 /* HealthKit.framework */; };
 		19B1A0F82E78FB0E003B71A0 /* CoreBluetooth.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 19B1A0FA2E78FB0E003B71A0 /* CoreBluetooth.framework */; };
+		19D0A0012FB9B10000A1B2C3 /* CaPowHrComplicationsExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 19D0A0022FB9B10000A1B2C3 /* CaPowHrComplicationsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -34,6 +35,13 @@
 			remoteGlobalIDString = 19B1A0C62E78FB0D003B71A0;
 			remoteInfo = "CaPowHr Watch App";
 		};
+		19D0A0402FB9B10000A1B2C3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 19B1A0BB2E78FB0D003B71A0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 19D0A0202FB9B10000A1B2C3;
+			remoteInfo = CaPowHrComplicationsExtension;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -48,6 +56,17 @@
 			name = "Embed Watch Content";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		19D0A0032FB9B10000A1B2C3 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				19D0A0012FB9B10000A1B2C3 /* CaPowHrComplicationsExtension.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
@@ -58,16 +77,10 @@
 		19B1A0F92E78FB0E003B71A0 /* HealthKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = HealthKit.framework; path = System/Library/Frameworks/HealthKit.framework; sourceTree = SDKROOT; };
 		19B1A0FA2E78FB0E003B71A0 /* CoreBluetooth.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreBluetooth.framework; path = System/Library/Frameworks/CoreBluetooth.framework; sourceTree = SDKROOT; };
 		19C7A5C92FB9A01100A1B2C3 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Secrets.xcconfig; path = Config/Secrets.xcconfig; sourceTree = "<group>"; };
+		19D0A0022FB9B10000A1B2C3 /* CaPowHrComplicationsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CaPowHrComplicationsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		19A9C8112EA18FA700D1146D /* Exceptions for "CaPowHr Watch App" folder in "CaPowHr" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Assets.xcassets,
-			);
-			target = 19B1A0C02E78FB0D003B71A0 /* CaPowHr */;
-		};
 		19C7A5CA2FB9A02200A1B2C4 /* Exceptions for "CaPowHr Watch App" folder in "CaPowHr Watch App" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -75,13 +88,26 @@
 			);
 			target = 19B1A0C62E78FB0D003B71A0 /* CaPowHr Watch App */;
 		};
+		19D0A0102FB9B10000A1B2C3 /* Exceptions for "CaPowHr" folder in "CaPowHr" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 19B1A0C02E78FB0D003B71A0 /* CaPowHr */;
+		};
+		19D0A0112FB9B10000A1B2C3 /* Exceptions for "CaPowHrComplications" folder in "CaPowHrComplicationsExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 19D0A0202FB9B10000A1B2C3 /* CaPowHrComplicationsExtension */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		19B1A0CB2E78FB0D003B71A0 /* CaPowHr Watch App */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				19A9C8112EA18FA700D1146D /* Exceptions for "CaPowHr Watch App" folder in "CaPowHr" target */,
 				19C7A5CA2FB9A02200A1B2C4 /* Exceptions for "CaPowHr Watch App" folder in "CaPowHr Watch App" target */,
 			);
 			path = "CaPowHr Watch App";
@@ -97,6 +123,22 @@
 			path = "CaPowHr Watch AppUITests";
 			sourceTree = "<group>";
 		};
+		19D0A0122FB9B10000A1B2C3 /* CaPowHr */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				19D0A0102FB9B10000A1B2C3 /* Exceptions for "CaPowHr" folder in "CaPowHr" target */,
+			);
+			path = CaPowHr;
+			sourceTree = "<group>";
+		};
+		19D0A0132FB9B10000A1B2C3 /* CaPowHrComplications */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				19D0A0112FB9B10000A1B2C3 /* Exceptions for "CaPowHrComplications" folder in "CaPowHrComplicationsExtension" target */,
+			);
+			path = CaPowHrComplications;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -106,6 +148,20 @@
 			files = (
 				19B1A0F72E78FB0E003B71A0 /* HealthKit.framework in Frameworks */,
 				19B1A0F82E78FB0E003B71A0 /* CoreBluetooth.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		19D0A0142FB9B10000A1B2C3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		19D0A0152FB9B10000A1B2C3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -130,7 +186,9 @@
 			isa = PBXGroup;
 			children = (
 				19C7A5C92FB9A01100A1B2C3 /* Secrets.xcconfig */,
+				19D0A0122FB9B10000A1B2C3 /* CaPowHr */,
 				19B1A0CB2E78FB0D003B71A0 /* CaPowHr Watch App */,
+				19D0A0132FB9B10000A1B2C3 /* CaPowHrComplications */,
 				19B1A0D92E78FB0E003B71A0 /* CaPowHr Watch AppTests */,
 				19B1A0E32E78FB0E003B71A0 /* CaPowHr Watch AppUITests */,
 				19B1A0C22E78FB0D003B71A0 /* Products */,
@@ -145,6 +203,7 @@
 				19B1A0C72E78FB0D003B71A0 /* CaPowHr Watch App.app */,
 				19B1A0D62E78FB0E003B71A0 /* CaPowHr Watch AppTests.xctest */,
 				19B1A0E02E78FB0E003B71A0 /* CaPowHr Watch AppUITests.xctest */,
+				19D0A0022FB9B10000A1B2C3 /* CaPowHrComplicationsExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -165,6 +224,8 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 19B1A0EE2E78FB0E003B71A0 /* Build configuration list for PBXNativeTarget "CaPowHr" */;
 			buildPhases = (
+				19D0A0162FB9B10000A1B2C3 /* Sources */,
+				19D0A0142FB9B10000A1B2C3 /* Frameworks */,
 				19B1A0BF2E78FB0D003B71A0 /* Resources */,
 				19B1A0ED2E78FB0E003B71A0 /* Embed Watch Content */,
 			);
@@ -173,12 +234,15 @@
 			dependencies = (
 				19B1A0CA2E78FB0D003B71A0 /* PBXTargetDependency */,
 			);
+			fileSystemSynchronizedGroups = (
+				19D0A0122FB9B10000A1B2C3 /* CaPowHr */,
+			);
 			name = CaPowHr;
 			packageProductDependencies = (
 			);
 			productName = CaPowHr;
 			productReference = 19B1A0C12E78FB0D003B71A0 /* CaPowHr.app */;
-			productType = "com.apple.product-type.application.watchapp2-container";
+			productType = "com.apple.product-type.application";
 		};
 		19B1A0C62E78FB0D003B71A0 /* CaPowHr Watch App */ = {
 			isa = PBXNativeTarget;
@@ -187,10 +251,12 @@
 				19B1A0C32E78FB0D003B71A0 /* Sources */,
 				19B1A0C42E78FB0D003B71A0 /* Frameworks */,
 				19B1A0C52E78FB0D003B71A0 /* Resources */,
+				19D0A0032FB9B10000A1B2C3 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				19D0A0412FB9B10000A1B2C3 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				19B1A0CB2E78FB0D003B71A0 /* CaPowHr Watch App */,
@@ -201,6 +267,28 @@
 			productName = "CaPowHr Watch App";
 			productReference = 19B1A0C72E78FB0D003B71A0 /* CaPowHr Watch App.app */;
 			productType = "com.apple.product-type.application";
+		};
+		19D0A0202FB9B10000A1B2C3 /* CaPowHrComplicationsExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 19D0A0302FB9B10000A1B2C3 /* Build configuration list for PBXNativeTarget "CaPowHrComplicationsExtension" */;
+			buildPhases = (
+				19D0A0212FB9B10000A1B2C3 /* Sources */,
+				19D0A0152FB9B10000A1B2C3 /* Frameworks */,
+				19D0A0222FB9B10000A1B2C3 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				19D0A0132FB9B10000A1B2C3 /* CaPowHrComplications */,
+			);
+			name = CaPowHrComplicationsExtension;
+			packageProductDependencies = (
+			);
+			productName = CaPowHrComplicationsExtension;
+			productReference = 19D0A0022FB9B10000A1B2C3 /* CaPowHrComplicationsExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 		19B1A0D52E78FB0E003B71A0 /* CaPowHr Watch AppTests */ = {
 			isa = PBXNativeTarget;
@@ -290,6 +378,7 @@
 			targets = (
 				19B1A0C02E78FB0D003B71A0 /* CaPowHr */,
 				19B1A0C62E78FB0D003B71A0 /* CaPowHr Watch App */,
+				19D0A0202FB9B10000A1B2C3 /* CaPowHrComplicationsExtension */,
 				19B1A0D52E78FB0E003B71A0 /* CaPowHr Watch AppTests */,
 				19B1A0DF2E78FB0E003B71A0 /* CaPowHr Watch AppUITests */,
 			);
@@ -325,6 +414,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		19D0A0222FB9B10000A1B2C3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -349,6 +445,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		19D0A0162FB9B10000A1B2C3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		19D0A0212FB9B10000A1B2C3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -367,6 +477,11 @@
 			target = 19B1A0C62E78FB0D003B71A0 /* CaPowHr Watch App */;
 			targetProxy = 19B1A0E12E78FB0E003B71A0 /* PBXContainerItemProxy */;
 		};
+		19D0A0412FB9B10000A1B2C3 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 19D0A0202FB9B10000A1B2C3 /* CaPowHrComplicationsExtension */;
+			targetProxy = 19D0A0402FB9B10000A1B2C3 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
@@ -374,7 +489,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_APPICON_NAME = "AppIcon iOS";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
@@ -436,7 +551,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_APPICON_NAME = "AppIcon iOS";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
@@ -577,34 +692,115 @@
 		};
 		19B1A0EF2E78FB0E003B71A0 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 19C7A5C92FB9A01100A1B2C3 /* Secrets.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = "AppIcon iOS";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = CaPowHr/CaPowHr.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 0;
 				DEVELOPMENT_TEAM = UX8Q7W992R;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = CaPowHr/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = CaPowHr;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
 				MARKETING_VERSION = 2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.MulcahyHeavyIndustries.CaPowHr;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
 		19B1A0F02E78FB0E003B71A0 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 19C7A5C92FB9A01100A1B2C3 /* Secrets.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = "AppIcon iOS";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = CaPowHr/CaPowHr.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 0;
 				DEVELOPMENT_TEAM = UX8Q7W992R;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = CaPowHr/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = CaPowHr;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
 				MARKETING_VERSION = 2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.MulcahyHeavyIndustries.CaPowHr;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
 				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		19D0A0312FB9B10000A1B2C3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 0;
+				DEVELOPMENT_TEAM = UX8Q7W992R;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = CaPowHrComplications/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = CaPowHr;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MARKETING_VERSION = 2.2;
+				PRODUCT_BUNDLE_IDENTIFIER = com.MulcahyHeavyIndustries.CaPowHr.watchkitapp.complications;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 11.5;
+			};
+			name = Debug;
+		};
+		19D0A0322FB9B10000A1B2C3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 0;
+				DEVELOPMENT_TEAM = UX8Q7W992R;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = CaPowHrComplications/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = CaPowHr;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MARKETING_VERSION = 2.2;
+				PRODUCT_BUNDLE_IDENTIFIER = com.MulcahyHeavyIndustries.CaPowHr.watchkitapp.complications;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				VALIDATE_PRODUCT = YES;
+				WATCHOS_DEPLOYMENT_TARGET = 11.5;
 			};
 			name = Release;
 		};
@@ -728,6 +924,15 @@
 			buildConfigurations = (
 				19B1A0F52E78FB0E003B71A0 /* Debug */,
 				19B1A0F62E78FB0E003B71A0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		19D0A0302FB9B10000A1B2C3 /* Build configuration list for PBXNativeTarget "CaPowHrComplicationsExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				19D0A0312FB9B10000A1B2C3 /* Debug */,
+				19D0A0322FB9B10000A1B2C3 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

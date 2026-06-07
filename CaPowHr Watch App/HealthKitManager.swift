@@ -17,6 +17,7 @@ final class HealthKitManager: NSObject {
     private var lastPowerWriteAt: Date?
     private var lastCadenceWriteAt: Date?
     private var lastHeartRateWriteAt: Date?
+    private var lastSpeedWriteAt: Date?
     private let minWriteInterval: TimeInterval = 1.0
 
     // MARK: - Authorization
@@ -37,7 +38,9 @@ final class HealthKitManager: NSObject {
             HKObjectType.quantityType(forIdentifier: .cyclingCadence)!,
             HKObjectType.quantityType(forIdentifier: .activeEnergyBurned)!,
             HKObjectType.quantityType(forIdentifier: .distanceCycling)!,
-            HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning)!
+            HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning)!,
+            HKObjectType.quantityType(forIdentifier: .runningSpeed)!,
+            HKObjectType.quantityType(forIdentifier: .walkingSpeed)!
         ]
 
         healthStore.requestAuthorization(toShare: typesToWrite, read: typesToRead) { success, error in
@@ -101,6 +104,14 @@ final class HealthKitManager: NSObject {
         workoutBuilder?.endCollection(withEnd: Date()) { success, error in
             completion(success, error)
         }
+    }
+
+    func pauseWorkout(at date: Date = Date()) {
+        workoutSession?.pause()
+    }
+
+    func resumeWorkout(at date: Date = Date()) {
+        workoutSession?.resume()
     }
 
     func finishWorkout(completion: @escaping (Bool, Error?) -> Void) {
@@ -213,6 +224,19 @@ final class HealthKitManager: NSObject {
         let sample = HKQuantitySample(type: type, quantity: quantity, start: now, end: now)
         workoutBuilder?.add([sample]) { _, error in
             if let error = error { print("Error adding heart rate sample: \(error.localizedDescription)") }
+        }
+    }
+
+    func addSpeedSample(_ metersPerSecond: Double, isRunning: Bool) {
+        let now = Date()
+        if let last = lastSpeedWriteAt, now.timeIntervalSince(last) < minWriteInterval { return }
+        lastSpeedWriteAt = now
+        let identifier: HKQuantityTypeIdentifier = isRunning ? .runningSpeed : .walkingSpeed
+        guard let type = HKQuantityType.quantityType(forIdentifier: identifier) else { return }
+        let quantity = HKQuantity(unit: HKUnit.meter().unitDivided(by: HKUnit.second()), doubleValue: metersPerSecond)
+        let sample = HKQuantitySample(type: type, quantity: quantity, start: now, end: now)
+        workoutBuilder?.add([sample]) { _, error in
+            if let error = error { print("Error adding speed sample: \(error.localizedDescription)") }
         }
     }
 }

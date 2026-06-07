@@ -1,14 +1,7 @@
-//
-//  ContentView.swift
-//  CaPowHr Watch App
-//
-//  Created by Luke Mulcahy on 9/15/25.
-//
-
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var workoutManager = WorkoutManager()
+    @EnvironmentObject private var workoutManager: WorkoutManager
     @StateObject private var stravaAuthManager: StravaAuthManager
     @StateObject private var stravaUploader: StravaUploader
     
@@ -20,14 +13,29 @@ struct ContentView: View {
     
     var body: some View {
         VStack(spacing: 8) {
-            // Body Content
-            if workoutManager.isAwaitingSave {
+            if workoutManager.isShowingWorkoutSummary, let summary = workoutManager.workoutSummary {
+                WorkoutSummaryView(
+                    summary: summary,
+                    stravaUploader: stravaUploader,
+                    onSave: {
+                        workoutManager.proceedFromSummaryToSaveDiscard()
+                        guard let summary = workoutManager.workoutSummary else { return }
+                        workoutManager.confirmSaveWorkout()
+                        Task {
+                            await stravaUploader.uploadWorkout(summary.uploadData)
+                        }
+                    },
+                    onDiscard: {
+                        stravaUploader.resetStatus()
+                        workoutManager.discardCurrentWorkout()
+                    }
+                )
+            } else if workoutManager.isAwaitingSave {
                 SaveDiscardView(
                     workoutManager: workoutManager,
                     stravaUploader: stravaUploader
                 )
             } else if workoutManager.isWorkoutActive {
-                // Switch UI based on detected device type
                 switch workoutManager.detectedDeviceType {
                 case .treadmill:
                     TreadmillWorkoutView(workoutManager: workoutManager)
@@ -46,11 +54,22 @@ struct ContentView: View {
             
             Spacer()
         }
-        .onAppear { workoutManager.requestHealthKitAuthorization() }
+        .onAppear {
+            workoutManager.requestHealthKitAuthorization()
+            WatchConnectivityManager.shared.delegate = stravaAuthManager
+        }
+        .onChange(of: workoutManager.isAwaitingSave) { _, awaiting in
+            guard awaiting,
+                  AppSettings.workoutSaveMode == .autoSave,
+                  let summary = workoutManager.workoutSummary else { return }
+            Task {
+                await stravaUploader.uploadWorkout(summary.uploadData)
+            }
+        }
     }
 }
 
 #Preview {
     ContentView()
+        .environmentObject(WorkoutManager())
 }
-

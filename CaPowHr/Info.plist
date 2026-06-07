@@ -2,8 +2,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CaPowHrGitHubToken</key>
-    <string>$(CAPOWHR_GITHUB_TOKEN)</string>
     <key>StravaClientId</key>
     <string>$(STRAVA_CLIENT_ID)</string>
     <key>StravaClientSecret</key>
@@ -11,8 +9,6 @@
     <key>CFBundleURLTypes</key>
     <array>
         <dict>
-            <key>CFBundleURLName</key>
-            <string>com.capowhr.strava-callback</string>
             <key>CFBundleURLSchemes</key>
             <array>
                 <string>capowhr</string>
@@ -21,4 +17,3 @@
     </array>
 </dict>
 </plist>
-

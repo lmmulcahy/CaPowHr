@@ -38,10 +38,16 @@ class WorkoutManager: NSObject, ObservableObject {
     @Published var cyclingSpeedMps: Double = 0
     @Published var workoutDuration: TimeInterval = 0
     @Published var isWorkoutActive: Bool = false
+    @Published var isWorkoutPaused: Bool = false
     @Published var isAwaitingSave: Bool = false
+    @Published var isShowingWorkoutSummary: Bool = false
+    @Published var isConnectingDuringWorkout: Bool = false
     @Published var isEndingCollection: Bool = false
+    @Published var isSavingWorkout: Bool = false
+    @Published var workoutSummary: WorkoutSummaryData?
     @Published var connectedDevices: [String] = []
     @Published var distanceMeters: Double = 0
+    @Published var activeEnergyKcal: Double = 0
     @Published var isDisplayOnlyMode: Bool = false
     @Published var lastErrorMessage: String? = nil
     @Published var showingErrorAlert: Bool = false
@@ -65,9 +71,11 @@ class WorkoutManager: NSObject, ObservableObject {
     
     // MARK: - Current Workout Type
     @Published var currentWorkoutType: WorkoutType = .indoorCycle
+    @Published var structuredWorkout = StructuredWorkoutController()
     
     // MARK: - Health Services
     private let hkManager = HealthKitManager()
+    private let statsTracker = WorkoutStatsTracker()
     
     // MARK: - CoreBluetooth
     private let bluetoothManager = BluetoothManager()
@@ -99,15 +107,36 @@ class WorkoutManager: NSObject, ObservableObject {
     override init() {
         super.init()
         bluetoothManager.delegate = self
+        WatchConnectivityManager.shared.activate()
+        attemptReconnectToTrustedDevices()
+    }
+
+    func attemptReconnectToTrustedDevices() {
+        let trusted = TrustedDeviceStore.loadAll()
+        guard !trusted.isEmpty else { return }
+        bluetoothManager.reconnectTrustedDevices(trusted.map(\.id))
     }
     
     // MARK: - HealthKit Authorization
     func requestHealthKitAuthorization() { hkManager.requestAuthorization() }
     
     // MARK: - Workout Control
-    func startWorkout(type: WorkoutType = .indoorCycle) {
+    func startWorkout(type: WorkoutType = .indoorCycle, connectIfNeeded: Bool = false) {
         guard !isWorkoutActive else { return }
         currentWorkoutType = type
+        AppSettings.lastWorkoutType = type
+
+        let templateRaw = UserDefaults.standard.string(forKey: AppSettings.structuredWorkoutTemplateKey) ?? StructuredWorkoutTemplate.free.rawValue
+        let template = StructuredWorkoutTemplate(rawValue: templateRaw) ?? .free
+        structuredWorkout.start(template: template)
+
+        if connectIfNeeded && connectedDevices.isEmpty {
+            isConnectingDuringWorkout = true
+            startScanning()
+            if let trusted = TrustedDeviceStore.mostRecent() {
+                bluetoothManager.reconnect(to: trusted.id)
+            }
+        }
 
         let canShareWorkout = hkManager.isWorkoutSharingAuthorized()
         if !canShareWorkout {
@@ -137,9 +166,15 @@ class WorkoutManager: NSObject, ObservableObject {
                 DispatchQueue.main.async {
                     guard let self = self else { return }
                     self.isWorkoutActive = true
+                    self.isWorkoutPaused = false
                     self.hkManager.delegate = self
                     self.hkManager.startHeartRateQuery()
-                    self.workoutTimer.onTick = { [weak self] seconds in self?.workoutDuration = seconds }
+                    self.statsTracker.begin()
+                    self.workoutTimer.onTick = { [weak self] seconds in
+                        guard let self else { return }
+                        self.workoutDuration = seconds
+                        self.structuredWorkout.tick()
+                    }
                     self.workoutTimer.start()
 
                     self.lastEnergyUpdateTime = Date()
@@ -191,9 +226,15 @@ class WorkoutManager: NSObject, ObservableObject {
         pendingDisplayOnlyStart = false
         isDisplayOnlyMode = true
         isWorkoutActive = true
+        isWorkoutPaused = false
         hkManager.delegate = self
         hkManager.startHeartRateQuery()
-        workoutTimer.onTick = { [weak self] seconds in self?.workoutDuration = seconds }
+        statsTracker.begin()
+        workoutTimer.onTick = { [weak self] seconds in
+            guard let self else { return }
+            self.workoutDuration = seconds
+            self.structuredWorkout.tick()
+        }
         workoutTimer.start()
 
         lastEnergyUpdateTime = Date()
@@ -203,42 +244,56 @@ class WorkoutManager: NSObject, ObservableObject {
     
     private var pendingSaveAfterEnd: Bool = false
 
+    func pauseWorkout() {
+        guard isWorkoutActive, !isWorkoutPaused else { return }
+        isWorkoutPaused = true
+        workoutTimer.pause()
+        if !isDisplayOnlyMode {
+            hkManager.pauseWorkout()
+        }
+    }
+
+    func resumeWorkout() {
+        guard isWorkoutActive, isWorkoutPaused else { return }
+        isWorkoutPaused = false
+        workoutTimer.resume()
+        if !isDisplayOnlyMode {
+            hkManager.resumeWorkout()
+        }
+    }
+
+    func recordLap() {
+        guard isWorkoutActive else { return }
+        _ = statsTracker.recordLap(
+            totalDistanceMeters: distanceMeters,
+            durationSeconds: workoutDuration
+        )
+    }
+
     func stopWorkout() {
         guard isWorkoutActive else { return }
-        
-        if isDisplayOnlyMode {
-            // No save flow; just stop and reset
-            DispatchQueue.main.async {
-                self.isWorkoutActive = false
-                self.isAwaitingSave = false
-                self.workoutTimer.stop()
-                self.hkManager.stopHeartRateQuery()
+        stopScanning()
+        isConnectingDuringWorkout = false
 
-                self.resetDistanceTracking()
-                self.resetEnergyTracking()
-                self.resetHeartRateTracking()
-                self.treadmillSpeedMps = 0
-                self.treadmillInclinePercent = 0
-                self.detectedDeviceType = .unknown
-                self.isDisplayOnlyMode = false
-            }
+        if isDisplayOnlyMode {
+            finalizeStoppedWorkout(save: false)
             return
         }
 
-        // Immediately transition UI to save/discard and stop live sources
-        DispatchQueue.main.async {
-            self.isAwaitingSave = true
-            self.isWorkoutActive = false
-            self.workoutTimer.stop()
-            self.hkManager.stopHeartRateQuery()
+        workoutTimer.stop(reset: false)
+        hkManager.stopHeartRateQuery()
+        isWorkoutActive = false
+        isWorkoutPaused = false
+        isEndingCollection = true
 
-            self.resetDistanceTracking()
-            self.resetEnergyTracking()
-            self.resetHeartRateTracking()
-            self.isEndingCollection = true
-        }
+        let summary = statsTracker.makeSummary(
+            workoutType: currentWorkoutType,
+            durationSeconds: workoutDuration,
+            distanceMeters: distanceMeters,
+            isDisplayOnlyMode: false
+        )
+        workoutSummary = summary
 
-        // End HealthKit collection in the background; when done, allow saving
         hkManager.endWorkoutCollection { success, error in
             if let error = error {
                 print("Error ending workout collection: \(error.localizedDescription)")
@@ -248,34 +303,83 @@ class WorkoutManager: NSObject, ObservableObject {
                 if self.pendingSaveAfterEnd {
                     self.pendingSaveAfterEnd = false
                     self.finishWorkout()
+                } else if AppSettings.workoutSaveMode == .autoSave {
+                    self.isAwaitingSave = true
+                    self.confirmSaveWorkout()
+                } else {
+                    self.isShowingWorkoutSummary = true
                 }
             }
         }
     }
+
+    func proceedFromSummaryToSaveDiscard() {
+        isShowingWorkoutSummary = false
+        isAwaitingSave = true
+    }
+
+    private func finalizeStoppedWorkout(save: Bool) {
+        DispatchQueue.main.async {
+            self.isWorkoutActive = false
+            self.isWorkoutPaused = false
+            self.isAwaitingSave = false
+            self.isShowingWorkoutSummary = false
+            self.workoutTimer.stop()
+            self.hkManager.stopHeartRateQuery()
+            self.structuredWorkout.reset()
+            if !save {
+                self.resetWorkoutMetrics()
+            }
+            self.isDisplayOnlyMode = false
+        }
+    }
+
+    private func resetWorkoutMetrics() {
+        heartRate = 0
+        cyclingPower = 0
+        cyclingCadence = 0
+        workoutDuration = 0
+        activeEnergyKcal = 0
+        resetDistanceTracking()
+        resetEnergyTracking()
+        resetHeartRateTracking()
+        treadmillSpeedMps = 0
+        treadmillInclinePercent = 0
+        rowerStrokeRatePerMinute = 0
+        rowerStrokeCount = 0
+        rowerPaceSeconds500m = 0
+        detectedDeviceType = .unknown
+        workoutSummary = nil
+        statsTracker.reset()
+    }
     
     private func finishWorkout() {
+        if let summary = workoutSummary,
+           let deviceName = connectedDevices.first {
+            CompatibilityStore.recordSuccessfulWorkout(
+                name: deviceName,
+                deviceType: detectedDeviceType
+            )
+        }
         hkManager.finishWorkout { [weak self] success, _ in
             if success { print("Workout saved successfully") }
             DispatchQueue.main.async {
                 guard let self = self else { return }
-                self.isWorkoutActive = false
                 self.isAwaitingSave = false
+                self.isShowingWorkoutSummary = false
+                self.isSavingWorkout = false
                 self.workoutTimer.stop()
                 self.hkManager.stopHeartRateQuery()
                 self.disconnectAllPeripherals()
-                self.resetDistanceTracking()
-                self.treadmillSpeedMps = 0
-                self.treadmillInclinePercent = 0
-                self.rowerStrokeRatePerMinute = 0
-                self.rowerStrokeCount = 0
-                self.rowerPaceSeconds500m = 0
-                self.detectedDeviceType = .unknown
+                self.resetWorkoutMetrics()
+                self.structuredWorkout.reset()
             }
         }
     }
 
     // MARK: - Post-workout actions
     func confirmSaveWorkout() {
+        isSavingWorkout = true
         if isEndingCollection {
             pendingSaveAfterEnd = true
             return
@@ -286,30 +390,7 @@ class WorkoutManager: NSObject, ObservableObject {
     func discardCurrentWorkout() {
         hkManager.discardWorkout()
         print("Workout discarded")
-        DispatchQueue.main.async {
-            self.isAwaitingSave = false
-            self.isWorkoutActive = false
-            self.workoutTimer.stop()
-            self.hkManager.stopHeartRateQuery()
-            self.disconnectAllPeripherals()
-            // Reset metrics
-            self.heartRate = 0
-            self.cyclingPower = 0
-            self.cyclingCadence = 0
-            self.workoutDuration = 0
-            self.distanceMeters = 0
-            self.cyclingSpeedMps = 0
-            self.treadmillSpeedMps = 0
-            self.treadmillInclinePercent = 0
-            self.rowerStrokeRatePerMinute = 0
-            self.rowerStrokeCount = 0
-            self.rowerPaceSeconds500m = 0
-            self.detectedDeviceType = .unknown
-            self.resetEnergyTracking()
-            self.resetHeartRateTracking()
-            self.lastDistanceUpdateTime = nil
-            self.lastDistanceMetersSaved = 0
-        }
+        finalizeStoppedWorkout(save: false)
     }
     
     // Heart rate query handled by HealthKitManager
@@ -466,6 +547,17 @@ extension WorkoutManager: BluetoothManagerDelegate {
     func btDidConnect(to name: String) {
         DispatchQueue.main.async {
             if !self.connectedDevices.contains(name) { self.connectedDevices.append(name) }
+            self.isConnectingDuringWorkout = false
+        }
+    }
+
+    func btDidConnectDevice(id: UUID, name: String, deviceType: FitnessDeviceType) {
+        DispatchQueue.main.async {
+            TrustedDeviceStore.remember(id: id, name: name, deviceType: deviceType)
+            CompatibilityStore.recordSuccessfulConnection(name: name, deviceType: deviceType)
+            if self.detectedDeviceType == .unknown, deviceType != .unknown {
+                self.detectedDeviceType = deviceType
+            }
         }
     }
     
@@ -480,7 +572,10 @@ extension WorkoutManager: BluetoothManagerDelegate {
     }
     
     func btDidUpdatePower(watts: Double) {
-        DispatchQueue.main.async { self.cyclingPower = watts }
+        DispatchQueue.main.async {
+            self.cyclingPower = watts
+            self.statsTracker.recordPower(watts)
+        }
         hkManager.addPowerSample(watts)
 
         // Fallback energy estimation from mechanical power if the bike doesn't provide FTMS expended energy.
@@ -501,12 +596,20 @@ extension WorkoutManager: BluetoothManagerDelegate {
     }
     
     func btDidUpdateCadence(rpm: Double) {
-        DispatchQueue.main.async { self.cyclingCadence = rpm }
+        DispatchQueue.main.async {
+            self.cyclingCadence = rpm
+            self.statsTracker.recordCadence(rpm)
+        }
         hkManager.addCadenceSample(rpm)
     }
     
     func btDidUpdateSpeed(mps: Double) {
         DispatchQueue.main.async { self.cyclingSpeedMps = mps }
+        if currentWorkoutType == .indoorRun {
+            hkManager.addSpeedSample(mps, isRunning: true)
+        } else if currentWorkoutType == .indoorWalk {
+            hkManager.addSpeedSample(mps, isRunning: false)
+        }
 
         // Cache latest speed for CSC circumference calibration.
         lastSpeedForCSCCalibrationMps = mps
@@ -616,6 +719,7 @@ extension WorkoutManager: BluetoothManagerDelegate {
             let totalKcal = Double(total)
             let now = Date()
             hasSeenFTMSEnergy = true
+            DispatchQueue.main.async { self.activeEnergyKcal = totalKcal }
 
             if let lastTotal = lastFTMSTotalEnergyKcal, let lastTime = lastEnergyUpdateTime {
                 let delta = totalKcal - lastTotal
@@ -659,6 +763,11 @@ extension WorkoutManager: BluetoothManagerDelegate {
         // Update treadmill-specific metrics
         if let speedMps = treadmill.instantaneousSpeedMps {
             DispatchQueue.main.async { self.treadmillSpeedMps = speedMps }
+            if currentWorkoutType == .indoorRun {
+                hkManager.addSpeedSample(speedMps, isRunning: true)
+            } else if currentWorkoutType == .indoorWalk {
+                hkManager.addSpeedSample(speedMps, isRunning: false)
+            }
         }
         if let incline = treadmill.inclinePercent {
             DispatchQueue.main.async { self.treadmillInclinePercent = incline }
@@ -704,6 +813,7 @@ extension WorkoutManager: BluetoothManagerDelegate {
             let totalKcal = Double(total)
             let now = Date()
             hasSeenFTMSEnergy = true
+            DispatchQueue.main.async { self.activeEnergyKcal = totalKcal }
             
             if let lastTotal = lastFTMSTotalEnergyKcal, let lastTime = lastEnergyUpdateTime {
                 let delta = totalKcal - lastTotal
@@ -769,6 +879,7 @@ extension WorkoutManager: BluetoothManagerDelegate {
             let totalKcal = Double(total)
             let now = Date()
             hasSeenFTMSEnergy = true
+            DispatchQueue.main.async { self.activeEnergyKcal = totalKcal }
             
             if let lastTotal = lastFTMSTotalEnergyKcal, let lastTime = lastEnergyUpdateTime {
                 let delta = totalKcal - lastTotal
@@ -800,12 +911,18 @@ extension WorkoutManager: HealthKitManagerDelegate {
             return
         case .watch:
             // In watch mode, always use watch HR
-            DispatchQueue.main.async { self.heartRate = bpm }
+            DispatchQueue.main.async {
+                self.heartRate = bpm
+                self.statsTracker.recordHeartRate(bpm)
+            }
             hkManager.addHeartRateSample(bpm)
         case .auto:
             // Auto mode: only use watch HR if we are not actively receiving bike HR
             if prefersBikeHeartRate { return }
-            DispatchQueue.main.async { self.heartRate = bpm }
+            DispatchQueue.main.async {
+                self.heartRate = bpm
+                self.statsTracker.recordHeartRate(bpm)
+            }
             hkManager.addHeartRateSample(bpm)
         }
     }

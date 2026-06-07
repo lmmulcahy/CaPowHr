@@ -1,68 +1,46 @@
-//
-//  TreadmillWorkoutView.swift
-//  CaPowHr Watch App
-//
-//  Displays treadmill-specific workout metrics: Speed, Incline, Distance, HR.
-//
-
 import SwiftUI
 
 struct TreadmillWorkoutView: View {
     @ObservedObject var workoutManager: WorkoutManager
+    @AppStorage(AppSettings.distanceUnitKey) private var distanceUnitRaw = DistanceUnit.miles.rawValue
+    
+    private var metrics: [TreadmillMetric] { WorkoutMetricsLayout.treadmillMetrics() }
     
     var body: some View {
         VStack(spacing: 2) {
             Text(formatDuration(workoutManager.workoutDuration))
                 .font(.title2)
                 .fontWeight(.semibold)
-                .foregroundColor(.primary)
             
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 8) {
-                DataCard(
-                    title: "HR",
-                    value: heartRateValue,
-                    unit: "BPM",
-                    icon: "heart.fill",
-                    color: .red
-                )
-                DataCard(
-                    title: "Speed",
-                    value: speedValue,
-                    unit: "mph",
-                    icon: "figure.run",
-                    color: .orange
-                )
-                DataCard(
-                    title: "Incline",
-                    value: inclineValue,
-                    unit: "%",
-                    icon: "arrow.up.right",
-                    color: .blue
-                )
-                DataCard(
-                    title: "Distance",
-                    value: distanceValue,
-                    unit: "mi",
-                    icon: "map",
-                    color: .green
-                )
+                ForEach(metrics) { metric in
+                    metricCard(metric)
+                }
             }
             
             Spacer(minLength: 6)
             
-            Button(action: {
+            WorkoutControlsView(workoutManager: workoutManager) {
                 workoutManager.stopWorkout()
-            }) {
-                Text("Stop")
-                    .font(.headline)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: 150)
-                    .padding(.vertical, 10)
-                    .background(Color.red)
-                    .cornerRadius(8)
             }
-            .buttonStyle(PlainButtonStyle())
+        }
+    }
+    
+    @ViewBuilder
+    private func metricCard(_ metric: TreadmillMetric) -> some View {
+        switch metric {
+        case .heartRate:
+            DataCard(title: metric.title, value: heartRateValue, unit: "BPM", icon: metric.icon, color: .red)
+        case .speed:
+            let formatted = DistanceFormatter.formatSpeedMps(workoutManager.treadmillSpeedMps, unit: DistanceUnit(rawValue: distanceUnitRaw) ?? .miles)
+            DataCard(title: metric.title, value: formatted.value, unit: formatted.unit, icon: metric.icon, color: .orange)
+        case .incline:
+            DataCard(title: metric.title, value: String(format: "%.1f", workoutManager.treadmillInclinePercent), unit: "%", icon: metric.icon, color: .blue)
+        case .distance:
+            let formatted = DistanceFormatter.formatDistance(workoutManager.distanceMeters, unit: DistanceUnit(rawValue: distanceUnitRaw) ?? .miles, decimals: 2)
+            DataCard(title: metric.title, value: formatted.value, unit: formatted.unit, icon: metric.icon, color: .green)
+        case .calories:
+            DataCard(title: metric.title, value: "\(Int(workoutManager.activeEnergyKcal))", unit: "kcal", icon: metric.icon, color: .pink)
         }
     }
     
@@ -77,20 +55,6 @@ struct TreadmillWorkoutView: View {
     private var heartRateValue: String {
         workoutManager.heartRate > 0 ? "\(Int(workoutManager.heartRate))" : "-"
     }
-    
-    private var speedValue: String {
-        let mph = workoutManager.treadmillSpeedMps * 2.23694
-        return String(format: "%.1f", mph)
-    }
-    
-    private var inclineValue: String {
-        String(format: "%.1f", workoutManager.treadmillInclinePercent)
-    }
-    
-    private var distanceValue: String {
-        let miles = workoutManager.distanceMeters / 1609.34
-        return String(format: "%.2f", miles)
-    }
 }
 
 #if DEBUG
@@ -98,10 +62,9 @@ struct TreadmillWorkoutView: View {
     let wm = WorkoutManager()
     wm.isWorkoutActive = true
     wm.heartRate = 145
-    wm.treadmillSpeedMps = 2.68  // ~6 mph
+    wm.treadmillSpeedMps = 2.68
     wm.treadmillInclinePercent = 2.5
-    wm.distanceMeters = 1609.34  // 1 mile
-    wm.connectedDevices = ["Treadmill"]
+    wm.distanceMeters = 1609.34
     return TreadmillWorkoutView(workoutManager: wm)
 }
 #endif

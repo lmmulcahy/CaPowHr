@@ -5,20 +5,14 @@ struct SettingsView: View {
     @ObservedObject var stravaAuthManager: StravaAuthManager
     @ObservedObject var stravaUploader: StravaUploader
     @AppStorage("heartRateSource") private var heartRateSource: String = HeartRateSource.auto.rawValue
+    @AppStorage(AppSettings.distanceUnitKey) private var distanceUnit: String = DistanceUnit.miles.rawValue
+    @AppStorage(AppSettings.workoutSaveModeKey) private var workoutSaveMode: String = WorkoutSaveMode.askEveryTime.rawValue
     
     private var heartRateSourceBinding: Binding<HeartRateSource> {
         Binding(
-            get: {
-                HeartRateSource(rawValue: heartRateSource) ?? .auto
-            },
-            set: { newValue in
-                heartRateSource = newValue.rawValue
-            }
+            get: { HeartRateSource(rawValue: heartRateSource) ?? .auto },
+            set: { heartRateSource = $0.rawValue }
         )
-    }
-    
-    private var heartRateSourceOrder: [HeartRateSource] {
-        [.auto, .bike, .watch]
     }
     
     var body: some View {
@@ -29,31 +23,65 @@ struct SettingsView: View {
                     .fontWeight(.bold)
                     .padding(.top, 8)
                 
-                // Heart Rate Source Selection
-                VStack(alignment: .leading, spacing: 8) {
-                    Picker("Heart Rate Source", selection: heartRateSourceBinding) {
-                        ForEach(heartRateSourceOrder, id: \.self) { source in
-                            Text(source.displayName).tag(source)
-                        }
+                Picker("Heart Rate Source", selection: heartRateSourceBinding) {
+                    ForEach([HeartRateSource.auto, .bike, .watch], id: \.self) { source in
+                        Text(source.displayName).tag(source)
                     }
-                    .pickerStyle(.navigationLink)
                 }
-                .padding(.horizontal, 8)
+                .pickerStyle(.navigationLink)
+
+                Picker("Distance Unit", selection: $distanceUnit) {
+                    ForEach(DistanceUnit.allCases) { unit in
+                        Text(unit.displayName).tag(unit.rawValue)
+                    }
+                }
+                .pickerStyle(.navigationLink)
+
+                Picker("After Workout", selection: $workoutSaveMode) {
+                    ForEach(WorkoutSaveMode.allCases) { mode in
+                        Text(mode.displayName).tag(mode.rawValue)
+                    }
+                }
+                .pickerStyle(.navigationLink)
+
+                NavigationLink {
+                    TrustedDevicesSettingsView(workoutManager: workoutManager)
+                } label: {
+                    Label("Trusted Devices", systemImage: "dot.radiowaves.left.and.right")
+                        .font(.footnote)
+                }
+
+                NavigationLink {
+                    MetricsLayoutSettingsView()
+                } label: {
+                    Label("Metric Layout", systemImage: "square.grid.2x2")
+                        .font(.footnote)
+                }
+
+                NavigationLink {
+                    TrainingSettingsView()
+                } label: {
+                    Label("Training", systemImage: "chart.line.uptrend.xyaxis")
+                        .font(.footnote)
+                }
+
+                NavigationLink {
+                    CompatibilityListView()
+                } label: {
+                    Label("Tested Equipment", systemImage: "checklist")
+                        .font(.footnote)
+                }
                 
                 if FeatureFlags.showBLELogUpload {
                     NavigationLink {
                         BLELogCaptureView(workoutManager: workoutManager)
                     } label: {
-                        HStack {
-                            Image(systemName: "antenna.radiowaves.left.and.right")
-                            Text("Capture BLE Log")
-                        }
-                        .font(.footnote)
+                        Label("Capture BLE Log", systemImage: "antenna.radiowaves.left.and.right")
+                            .font(.footnote)
                     }
                 }
                 
                 if FeatureFlags.showStravaIntegration {
-                    // Strava Integration
                     NavigationLink {
                         StravaSettingsView(
                             authManager: stravaAuthManager,
@@ -61,9 +89,7 @@ struct SettingsView: View {
                         )
                     } label: {
                         HStack {
-                            Image(systemName: "figure.run.circle")
-                                .foregroundColor(.orange)
-                            Text("Strava")
+                            Label("Strava", systemImage: "figure.run.circle")
                             Spacer()
                             if stravaAuthManager.isAuthenticated {
                                 Image(systemName: "checkmark.circle.fill")
@@ -95,4 +121,3 @@ struct SettingsView: View {
     }
 }
 #endif
-

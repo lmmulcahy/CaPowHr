@@ -2,60 +2,58 @@ import SwiftUI
 
 struct WorkoutView: View {
     @ObservedObject var workoutManager: WorkoutManager
+    @AppStorage(AppSettings.distanceUnitKey) private var distanceUnitRaw = DistanceUnit.miles.rawValue
+    
+    private var metrics: [BikeMetric] { WorkoutMetricsLayout.bikeMetrics() }
     
     var body: some View {
         VStack(spacing: 2) {
             Text(formatDuration(workoutManager.workoutDuration))
                 .font(.title2)
                 .fontWeight(.semibold)
-                .foregroundColor(.primary)
+                .foregroundColor(workoutManager.isWorkoutPaused ? .yellow : .primary)
+
+            if let hrZone = HeartRateZone.zone(forHeartRate: workoutManager.heartRate) {
+                Text(hrZone.label)
+                    .font(.caption2)
+                    .foregroundColor(hrZone.color)
+            } else if let powerZone = PowerZone.zone(forPower: workoutManager.cyclingPower) {
+                Text(powerZone.label)
+                    .font(.caption2)
+                    .foregroundColor(powerZone.color)
+            }
             
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 8) {
-                DataCard(
-                    title: "HR",
-                    value: heartRateValue,
-                    unit: "BPM",
-                    icon: "heart.fill",
-                    color: .red
-                )
-                DataCard(
-                    title: "Power",
-                    value: "\(Int(workoutManager.cyclingPower))",
-                    unit: "W",
-                    icon: "bolt.fill",
-                    color: .orange
-                )
-                DataCard(
-                    title: "Cadence",
-                    value: "\(Int(workoutManager.cyclingCadence))",
-                    unit: "RPM",
-                    icon: "speedometer",
-                    color: .blue
-                )
-                DataCard(
-                    title: "Distance",
-                    value: "\(distanceValue)",
-                    unit: "\(distanceUnit)",
-                    icon: "map",
-                    color: .green
-                )
+                ForEach(metrics) { metric in
+                    metricCard(metric)
+                }
             }
             
             Spacer(minLength: 6)
             
-            Button(action: {
+            WorkoutControlsView(workoutManager: workoutManager) {
                 workoutManager.stopWorkout()
-            }) {
-                Text("Stop")
-                    .font(.headline)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: 150)
-                    .padding(.vertical, 10)
-                    .background(Color.red)
-                    .cornerRadius(8)
             }
-            .buttonStyle(PlainButtonStyle())
+        }
+    }
+    
+    @ViewBuilder
+    private func metricCard(_ metric: BikeMetric) -> some View {
+        switch metric {
+        case .heartRate:
+            DataCard(title: metric.title, value: heartRateValue, unit: "BPM", icon: metric.icon, color: .red)
+        case .power:
+            DataCard(title: metric.title, value: "\(Int(workoutManager.cyclingPower))", unit: "W", icon: metric.icon, color: .orange)
+        case .cadence:
+            DataCard(title: metric.title, value: "\(Int(workoutManager.cyclingCadence))", unit: "RPM", icon: metric.icon, color: .blue)
+        case .distance:
+            let formatted = DistanceFormatter.formatDistance(workoutManager.distanceMeters, unit: DistanceUnit(rawValue: distanceUnitRaw) ?? .miles)
+            DataCard(title: metric.title, value: formatted.value, unit: formatted.unit, icon: metric.icon, color: .green)
+        case .speed:
+            let formatted = DistanceFormatter.formatSpeedMps(workoutManager.cyclingSpeedMps, unit: DistanceUnit(rawValue: distanceUnitRaw) ?? .miles)
+            DataCard(title: metric.title, value: formatted.value, unit: formatted.unit, icon: metric.icon, color: .cyan)
+        case .calories:
+            DataCard(title: metric.title, value: "\(Int(workoutManager.activeEnergyKcal))", unit: "kcal", icon: metric.icon, color: .pink)
         }
     }
     
@@ -70,13 +68,6 @@ struct WorkoutView: View {
     private var heartRateValue: String {
         workoutManager.heartRate > 0 ? "\(Int(workoutManager.heartRate))" : "-"
     }
-    
-    private var distanceValue: String {
-        let miles = workoutManager.distanceMeters / 1609.34
-        return String(format: "%.1f", miles)
-    }
-    
-    private var distanceUnit: String { "mi" }
 }
 
 struct DataCard: View {
@@ -126,5 +117,3 @@ struct DataCard: View {
     return WorkoutView(workoutManager: wm)
 }
 #endif
-
-

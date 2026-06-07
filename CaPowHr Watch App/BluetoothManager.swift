@@ -79,6 +79,8 @@ protocol BluetoothManagerDelegate: AnyObject {
     func btDidDetectDeviceType(_ type: FitnessDeviceType)
     /// Emitted whenever the set of connected devices changes.
     func btDidUpdateConnectedDevices(_ names: [String])
+    /// Called after a successful connection with stable peripheral identity.
+    func btDidConnectDevice(id: UUID, name: String, deviceType: FitnessDeviceType)
 
     /// Raw parsed CSC Measurement values (0x2A5B). Used for distance estimation when wheel data is present.
     func btDidUpdateCSC(wheelRev: UInt32?, wheelTime: UInt16?, crankRev: UInt16?, crankTime: UInt16?)
@@ -97,6 +99,7 @@ final class BluetoothManager: NSObject {
     private var connectedPeripherals: [CBPeripheral] = []
     /// Strong references to keep peripherals alive while connecting.
     private var connectingPeripherals: [CBPeripheral] = []
+    private var detectedDeviceTypes: [UUID: FitnessDeviceType] = [:]
     
     /// Cached display names keyed by `CBPeripheral.identifier`.
     /// `CBPeripheral.name` is frequently nil on first discovery/connect; the advertisement local name is often the best initial value.
@@ -214,14 +217,43 @@ final class BluetoothManager: NSObject {
             print("Peripheral \(identifier) not found in discovered list.")
             return
         }
-        
-        // Stop scanning to prevent radio contention during connection
+        connect(peripheral: peripheral)
+    }
+
+    func connect(peripheral: CBPeripheral) {
         stopScanning()
-        
         if !connectedPeripherals.contains(peripheral) && !connectingPeripherals.contains(peripheral) {
             connectingPeripherals.append(peripheral)
             print("Connecting to \(cachedDisplayName(for: peripheral))...")
             centralManager.connect(peripheral, options: nil)
+        }
+    }
+
+    /// Attempt to reconnect to a previously trusted device by UUID.
+    func reconnect(to identifier: UUID) {
+        guard centralManager.state == .poweredOn else { return }
+        if let existing = connectedPeripherals.first(where: { $0.identifier == identifier }) {
+            delegate?.btDidConnect(to: cachedDisplayName(for: existing))
+            delegate?.btDidUpdateConnectedDevices(connectedPeripherals.map { cachedDisplayName(for: $0) })
+            return
+        }
+        if let cached = discoveredPeripheralsDict[identifier] {
+            connect(peripheral: cached)
+            return
+        }
+        let peripherals = centralManager.retrievePeripherals(withIdentifiers: [identifier])
+        guard let peripheral = peripherals.first else {
+            print("Unable to retrieve trusted peripheral \(identifier)")
+            return
+        }
+        discoveredPeripheralsDict[identifier] = peripheral
+        connect(peripheral: peripheral)
+    }
+
+    func reconnectTrustedDevices(_ identifiers: [UUID]) {
+        guard !identifiers.isEmpty else { return }
+        for id in identifiers {
+            reconnect(to: id)
         }
     }
 }
@@ -276,6 +308,8 @@ extension BluetoothManager: CBCentralManagerDelegate {
         if !connectedPeripherals.contains(peripheral) { connectedPeripherals.append(peripheral) }
         delegate?.btDidConnect(to: name)
         delegate?.btDidUpdateConnectedDevices(connectedPeripherals.map { cachedDisplayName(for: $0) })
+        let deviceType = detectedDeviceTypes[peripheral.identifier] ?? .unknown
+        delegate?.btDidConnectDevice(id: peripheral.identifier, name: name, deviceType: deviceType)
         // Discover the services we care about; then characteristics
         peripheral.delegate = self
         peripheral.discoverServices(BluetoothUUIDs.Service.allCycling)
@@ -344,10 +378,13 @@ extension BluetoothManager: CBPeripheralDelegate {
                 
                 // Detect device type based on which characteristic we're subscribing to
                 if characteristic.uuid == BluetoothUUIDs.Characteristic.indoorBikeData {
+                    detectedDeviceTypes[peripheral.identifier] = .bike
                     delegate?.btDidDetectDeviceType(.bike)
                 } else if characteristic.uuid == BluetoothUUIDs.Characteristic.treadmillData {
+                    detectedDeviceTypes[peripheral.identifier] = .treadmill
                     delegate?.btDidDetectDeviceType(.treadmill)
                 } else if characteristic.uuid == BluetoothUUIDs.Characteristic.rowerData {
+                    detectedDeviceTypes[peripheral.identifier] = .rower
                     delegate?.btDidDetectDeviceType(.rower)
                 }
             }

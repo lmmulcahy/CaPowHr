@@ -1,59 +1,43 @@
-//
-//  RowerWorkoutView.swift
-//  CaPowHr Watch App
-//
-//  Displays rower-specific workout metrics: Stroke Rate, Pace, Distance, Power, HR.
-//
-
 import SwiftUI
 
 struct RowerWorkoutView: View {
     @ObservedObject var workoutManager: WorkoutManager
+    @AppStorage(AppSettings.distanceUnitKey) private var distanceUnitRaw = DistanceUnit.miles.rawValue
+    
+    private var metrics: [RowerMetric] { WorkoutMetricsLayout.rowerMetrics() }
     
     var body: some View {
         VStack(spacing: 4) {
-            // Duration at top
             Text(formatDuration(workoutManager.workoutDuration))
                 .font(.title3)
                 .fontWeight(.semibold)
             
-            // Main metrics in 2x2 compact grid
-            HStack(spacing: 6) {
-                CompactMetric(value: paceValue, unit: "/500m", color: .cyan)
-                CompactMetric(value: strokeRateValue, unit: "SPM", color: .orange)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 6) {
+                ForEach(metrics) { metric in
+                    rowerMetricCard(metric)
+                }
             }
             
-            HStack(spacing: 6) {
-                CompactMetric(value: powerValue, unit: "W", color: .yellow)
-                CompactMetric(value: distanceValue, unit: "m", color: .green)
+            WorkoutControlsView(workoutManager: workoutManager) {
+                workoutManager.stopWorkout()
             }
-            
-            // Heart rate inline
-            HStack(spacing: 4) {
-                Image(systemName: "heart.fill")
-                    .foregroundColor(.red)
-                    .font(.caption2)
-                Text(heartRateValue)
-                    .font(.footnote)
-                    .fontWeight(.semibold)
-                Text("BPM")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
-            .padding(.vertical, 2)
-            
-            // Stop button
-            Button(action: { workoutManager.stopWorkout() }) {
-                Text("Stop")
-                    .font(.subheadline)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: 120)
-                    .padding(.vertical, 8)
-                    .background(Color.red)
-                    .cornerRadius(8)
-            }
-            .buttonStyle(PlainButtonStyle())
+        }
+    }
+    
+    @ViewBuilder
+    private func rowerMetricCard(_ metric: RowerMetric) -> some View {
+        switch metric {
+        case .pace:
+            CompactMetric(value: paceValue, unit: "/500m", color: .cyan)
+        case .strokeRate:
+            CompactMetric(value: strokeRateValue, unit: "SPM", color: .orange)
+        case .power:
+            CompactMetric(value: powerValue, unit: "W", color: .yellow)
+        case .distance:
+            let formatted = DistanceFormatter.formatDistance(workoutManager.distanceMeters, unit: DistanceUnit(rawValue: distanceUnitRaw) ?? .miles, decimals: 1)
+            CompactMetric(value: formatted.value, unit: formatted.unit, color: .green)
+        case .heartRate:
+            CompactMetric(value: heartRateValue, unit: "BPM", color: .red)
         }
     }
     
@@ -68,24 +52,15 @@ struct RowerWorkoutView: View {
     private var paceValue: String {
         let seconds = workoutManager.rowerPaceSeconds500m
         guard seconds > 0 else { return "-:--" }
-        let mins = Int(seconds) / 60
-        let secs = Int(seconds) % 60
-        return String(format: "%d:%02d", mins, secs)
+        return String(format: "%d:%02d", Int(seconds) / 60, Int(seconds) % 60)
     }
     
     private var strokeRateValue: String {
-        let rate = workoutManager.rowerStrokeRatePerMinute
-        return rate > 0 ? String(format: "%.0f", rate) : "-"
+        workoutManager.rowerStrokeRatePerMinute > 0 ? String(format: "%.0f", workoutManager.rowerStrokeRatePerMinute) : "-"
     }
     
     private var powerValue: String {
-        let watts = workoutManager.cyclingPower
-        return watts > 0 ? "\(Int(watts))" : "-"
-    }
-    
-    private var distanceValue: String {
-        let meters = workoutManager.distanceMeters
-        return meters > 0 ? String(format: "%.0f", meters) : "-"
+        workoutManager.cyclingPower > 0 ? "\(Int(workoutManager.cyclingPower))" : "-"
     }
 
     private var heartRateValue: String {
@@ -93,7 +68,6 @@ struct RowerWorkoutView: View {
     }
 }
 
-/// Compact metric display for rower view
 private struct CompactMetric: View {
     let value: String
     let unit: String
@@ -124,7 +98,6 @@ private struct CompactMetric: View {
     wm.rowerPaceSeconds500m = 125
     wm.distanceMeters = 2500
     wm.cyclingPower = 185
-    wm.connectedDevices = ["PM5"]
     return RowerWorkoutView(workoutManager: wm)
 }
 #endif
