@@ -375,17 +375,26 @@ extension BluetoothManager: CBPeripheralDelegate {
                 // Subscribe to notifications for streaming sensor data
                 peripheral.setNotifyValue(true, for: characteristic)
                 BluetoothLogManager.shared.logNotifySet(true, characteristic: characteristic, peripheral: peripheral)
-                
+
                 // Detect device type based on which characteristic we're subscribing to
-                if characteristic.uuid == BluetoothUUIDs.Characteristic.indoorBikeData {
-                    detectedDeviceTypes[peripheral.identifier] = .bike
-                    delegate?.btDidDetectDeviceType(.bike)
-                } else if characteristic.uuid == BluetoothUUIDs.Characteristic.treadmillData {
-                    detectedDeviceTypes[peripheral.identifier] = .treadmill
-                    delegate?.btDidDetectDeviceType(.treadmill)
-                } else if characteristic.uuid == BluetoothUUIDs.Characteristic.rowerData {
-                    detectedDeviceTypes[peripheral.identifier] = .rower
-                    delegate?.btDidDetectDeviceType(.rower)
+                let detected: FitnessDeviceType?
+                switch characteristic.uuid {
+                case BluetoothUUIDs.Characteristic.indoorBikeData: detected = .bike
+                case BluetoothUUIDs.Characteristic.treadmillData: detected = .treadmill
+                case BluetoothUUIDs.Characteristic.rowerData: detected = .rower
+                default: detected = nil
+                }
+                if let detected {
+                    detectedDeviceTypes[peripheral.identifier] = detected
+                    delegate?.btDidDetectDeviceType(detected)
+                    // Characteristic discovery happens after didConnect, so the connect
+                    // event carried .unknown. Re-emit it now that the type is known so
+                    // trusted-device and compatibility records get the real type.
+                    delegate?.btDidConnectDevice(
+                        id: peripheral.identifier,
+                        name: cachedDisplayName(for: peripheral),
+                        deviceType: detected
+                    )
                 }
             }
         }
