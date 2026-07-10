@@ -13,16 +13,6 @@ struct WorkoutView: View {
                 .fontWeight(.semibold)
                 .foregroundColor(workoutManager.isWorkoutPaused ? .yellow : .primary)
 
-            if let hrZone = HeartRateZone.zone(forHeartRate: workoutManager.heartRate) {
-                Text(hrZone.label)
-                    .font(.caption2)
-                    .foregroundColor(hrZone.color)
-            } else if let powerZone = PowerZone.zone(forPower: workoutManager.cyclingPower) {
-                Text(powerZone.label)
-                    .font(.caption2)
-                    .foregroundColor(powerZone.color)
-            }
-            
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 8) {
                 ForEach(metrics) { metric in
                     metricCard(metric)

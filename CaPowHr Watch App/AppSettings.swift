@@ -47,8 +47,6 @@ enum AppSettings {
     static let workoutSaveModeKey = "workoutSaveMode"
     static let stravaSyncEnabledKey = "stravaSyncEnabled"
     static let lastWorkoutTypeKey = "lastWorkoutType"
-    static let maxHeartRateKey = "maxHeartRate"
-    static let ftpKey = "ftp"
     static let structuredWorkoutTemplateKey = "structuredWorkoutTemplate"
     static let fitExportEnabledKey = "fitExportEnabled"
 
@@ -86,25 +84,6 @@ enum AppSettings {
         }
     }
 
-    static var maxHeartRate: Int {
-        get {
-            let value = UserDefaults.standard.integer(forKey: maxHeartRateKey)
-            return value > 0 ? value : 190
-        }
-        set {
-            UserDefaults.standard.set(newValue, forKey: maxHeartRateKey)
-        }
-    }
-
-    static var ftp: Int {
-        get {
-            let value = UserDefaults.standard.integer(forKey: ftpKey)
-            return value > 0 ? value : 200
-        }
-        set {
-            UserDefaults.standard.set(newValue, forKey: ftpKey)
-        }
-    }
 }
 
 extension WorkoutType {

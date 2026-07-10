@@ -101,18 +101,10 @@ struct MetricsLayoutSettingsView: View {
 }
 
 struct TrainingSettingsView: View {
-    @State private var maxHR = AppSettings.maxHeartRate
-    @State private var ftp = AppSettings.ftp
     @State private var template = StructuredWorkoutTemplate.free
 
     var body: some View {
         Form {
-            Section("Heart Rate Zones") {
-                Stepper("Max HR: \(maxHR)", value: $maxHR, in: 120...220)
-            }
-            Section("Power Zones") {
-                Stepper("FTP: \(ftp) W", value: $ftp, in: 80...450, step: 5)
-            }
             Section("Structured Workout") {
                 Picker("Template", selection: $template) {
                     ForEach(StructuredWorkoutTemplate.allCases) { item in
@@ -122,14 +114,10 @@ struct TrainingSettingsView: View {
             }
         }
         .navigationTitle("Training")
-        .onChange(of: maxHR) { AppSettings.maxHeartRate = $0 }
-        .onChange(of: ftp) { AppSettings.ftp = $0 }
         .onChange(of: template) {
             UserDefaults.standard.set(template.rawValue, forKey: AppSettings.structuredWorkoutTemplateKey)
         }
         .onAppear {
-            maxHR = AppSettings.maxHeartRate
-            ftp = AppSettings.ftp
             let raw = UserDefaults.standard.string(forKey: AppSettings.structuredWorkoutTemplateKey) ?? StructuredWorkoutTemplate.free.rawValue
             template = StructuredWorkoutTemplate(rawValue: raw) ?? .free
         }
