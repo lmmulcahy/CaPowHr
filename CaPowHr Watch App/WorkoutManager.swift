@@ -73,7 +73,6 @@ class WorkoutManager: NSObject, ObservableObject {
     
     // MARK: - Current Workout Type
     @Published var currentWorkoutType: WorkoutType = .indoorCycle
-    @Published var structuredWorkout = StructuredWorkoutController()
     
     // MARK: - Health Services
     private let hkManager = HealthKitManager()
@@ -138,10 +137,6 @@ class WorkoutManager: NSObject, ObservableObject {
         currentWorkoutType = type
         AppSettings.lastWorkoutType = type
 
-        let templateRaw = UserDefaults.standard.string(forKey: AppSettings.structuredWorkoutTemplateKey) ?? StructuredWorkoutTemplate.free.rawValue
-        let template = StructuredWorkoutTemplate(rawValue: templateRaw) ?? .free
-        structuredWorkout.start(template: template)
-
         if connectIfNeeded && connectedDevices.isEmpty {
             isConnectingDuringWorkout = true
             startScanning()
@@ -185,7 +180,6 @@ class WorkoutManager: NSObject, ObservableObject {
                     self.workoutTimer.onTick = { [weak self] seconds in
                         guard let self else { return }
                         self.workoutDuration = seconds
-                        self.structuredWorkout.tick()
                         self.zeroStaleMetrics()
                     }
                     self.workoutTimer.start()
@@ -246,7 +240,6 @@ class WorkoutManager: NSObject, ObservableObject {
         workoutTimer.onTick = { [weak self] seconds in
             guard let self else { return }
             self.workoutDuration = seconds
-            self.structuredWorkout.tick()
             self.zeroStaleMetrics()
         }
         workoutTimer.start()
@@ -348,7 +341,6 @@ class WorkoutManager: NSObject, ObservableObject {
             self.isShowingWorkoutSummary = false
             self.workoutTimer.stop()
             self.hkManager.stopHeartRateQuery()
-            self.structuredWorkout.reset()
             if !save {
                 self.resetWorkoutMetrics()
             }
@@ -408,13 +400,6 @@ class WorkoutManager: NSObject, ObservableObject {
     }
     
     private func finishWorkout() {
-        if let summary = workoutSummary,
-           let deviceName = connectedDevices.first {
-            CompatibilityStore.recordSuccessfulWorkout(
-                name: deviceName,
-                deviceType: detectedDeviceType
-            )
-        }
         hkManager.finishWorkout { [weak self] success, _ in
             if success { print("Workout saved successfully") }
             DispatchQueue.main.async {
@@ -426,7 +411,6 @@ class WorkoutManager: NSObject, ObservableObject {
                 self.hkManager.stopHeartRateQuery()
                 self.disconnectAllPeripherals()
                 self.resetWorkoutMetrics()
-                self.structuredWorkout.reset()
             }
         }
     }
@@ -693,7 +677,6 @@ extension WorkoutManager: BluetoothManagerDelegate {
     func btDidConnectDevice(id: UUID, name: String, deviceType: FitnessDeviceType) {
         DispatchQueue.main.async {
             TrustedDeviceStore.remember(id: id, name: name, deviceType: deviceType)
-            CompatibilityStore.recordSuccessfulConnection(name: name, deviceType: deviceType)
             if self.detectedDeviceType == .unknown, deviceType != .unknown {
                 self.detectedDeviceType = deviceType
             }

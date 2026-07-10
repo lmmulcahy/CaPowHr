@@ -62,20 +62,6 @@ struct SettingsView: View {
                         .font(.footnote)
                 }
 
-                NavigationLink {
-                    TrainingSettingsView()
-                } label: {
-                    Label("Training", systemImage: "chart.line.uptrend.xyaxis")
-                        .font(.footnote)
-                }
-
-                NavigationLink {
-                    CompatibilityListView()
-                } label: {
-                    Label("Tested Equipment", systemImage: "checklist")
-                        .font(.footnote)
-                }
-                
                 if FeatureFlags.showBLELogUpload {
                     NavigationLink {
                         BLELogCaptureView(workoutManager: workoutManager)

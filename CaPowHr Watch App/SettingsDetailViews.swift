@@ -37,30 +37,6 @@ struct TrustedDevicesSettingsView: View {
     }
 }
 
-struct CompatibilityListView: View {
-    @State private var records = CompatibilityStore.loadAll()
-
-    var body: some View {
-        List {
-            if records.isEmpty {
-                Text("Connect equipment to build your compatibility list.")
-                    .foregroundColor(.secondary)
-            } else {
-                ForEach(records) { record in
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(record.deviceName)
-                        Text("\(record.deviceType.rawValue.capitalized) · \(record.successfulWorkoutCount) workouts")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
-        }
-        .navigationTitle("Tested Equipment")
-        .onAppear { records = CompatibilityStore.loadAll() }
-    }
-}
-
 struct MetricsLayoutSettingsView: View {
     @State private var bikeMetrics = WorkoutMetricsLayout.bikeMetrics()
     @State private var treadmillMetrics = WorkoutMetricsLayout.treadmillMetrics()
@@ -99,47 +75,3 @@ struct MetricsLayoutSettingsView: View {
         .navigationTitle("Metric Layout")
     }
 }
-
-struct TrainingSettingsView: View {
-    @State private var maxHR = AppSettings.maxHeartRate
-    @State private var ftp = AppSettings.ftp
-    @State private var template = StructuredWorkoutTemplate.free
-
-    var body: some View {
-        Form {
-            Section("Heart Rate Zones") {
-                Stepper("Max HR: \(maxHR)", value: $maxHR, in: 120...220)
-            }
-            Section("Power Zones") {
-                Stepper("FTP: \(ftp) W", value: $ftp, in: 80...450, step: 5)
-            }
-            Section("Structured Workout") {
-                Picker("Template", selection: $template) {
-                    ForEach(StructuredWorkoutTemplate.allCases) { item in
-                        Text(item.displayName).tag(item)
-                    }
-                }
-            }
-        }
-        .navigationTitle("Training")
-        .onChange(of: maxHR) { AppSettings.maxHeartRate = $0 }
-        .onChange(of: ftp) { AppSettings.ftp = $0 }
-        .onChange(of: template) {
-            UserDefaults.standard.set(template.rawValue, forKey: AppSettings.structuredWorkoutTemplateKey)
-        }
-        .onAppear {
-            maxHR = AppSettings.maxHeartRate
-            ftp = AppSettings.ftp
-            let raw = UserDefaults.standard.string(forKey: AppSettings.structuredWorkoutTemplateKey) ?? StructuredWorkoutTemplate.free.rawValue
-            template = StructuredWorkoutTemplate(rawValue: raw) ?? .free
-        }
-    }
-}
-
-#if DEBUG
-#Preview {
-    NavigationStack {
-        TrainingSettingsView()
-    }
-}
-#endif

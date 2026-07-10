@@ -400,7 +400,7 @@ extension BluetoothManager: CBPeripheralDelegate {
                     delegate?.btDidDetectDeviceType(detected)
                     // Characteristic discovery happens after didConnect, so the connect
                     // event carried .unknown. Re-emit it now that the type is known so
-                    // trusted-device and compatibility records get the real type.
+                    // the trusted-device record gets the real type.
                     delegate?.btDidConnectDevice(
                         id: peripheral.identifier,
                         name: cachedDisplayName(for: peripheral),
