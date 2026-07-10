@@ -89,7 +89,20 @@ final class HealthKitManager: NSObject {
             self.workoutSession = session
             self.workoutBuilder = builder
             // Assign a live data source to ensure metrics stream correctly on all watchOS versions
-            builder.dataSource = HKLiveWorkoutDataSource(healthStore: healthStore, workoutConfiguration: configuration)
+            let dataSource = HKLiveWorkoutDataSource(healthStore: healthStore, workoutConfiguration: configuration)
+            // CaPowHr writes its own heart-rate, energy, and distance samples (equipment
+            // data, honoring the user's HR-source preference). Disable automatic collection
+            // of those types so the watch's own estimates don't sum with ours in the
+            // workout totals (double-counted calories/distance, duplicated HR).
+            let selfWrittenTypes: [HKQuantityTypeIdentifier] = [
+                .heartRate, .activeEnergyBurned, .distanceCycling, .distanceWalkingRunning
+            ]
+            for identifier in selfWrittenTypes {
+                if let type = HKQuantityType.quantityType(forIdentifier: identifier) {
+                    dataSource.disableCollection(for: type)
+                }
+            }
+            builder.dataSource = dataSource
             session.startActivity(with: Date())
             builder.beginCollection(withStart: Date()) { success, error in
                 completion(success, error)
