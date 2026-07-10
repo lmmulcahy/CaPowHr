@@ -84,6 +84,10 @@ protocol BluetoothManagerDelegate: AnyObject {
 
     /// Raw parsed CSC Measurement values (0x2A5B). Used for distance estimation when wheel data is present.
     func btDidUpdateCSC(wheelRev: UInt32?, wheelTime: UInt16?, crankRev: UInt16?, crankTime: UInt16?)
+
+    /// Emitted whenever scanning starts or stops, including the automatic restarts
+    /// after a disconnect/failed connect, so UI state can track the real radio state.
+    func btDidChangeScanningState(_ isScanning: Bool)
 }
 
 final class BluetoothManager: NSObject {
@@ -144,6 +148,7 @@ final class BluetoothManager: NSObject {
         // User explicitly began scanning; allow auto-reconnect behavior going forward
         allowAutoReconnect = true
         isScanning = true
+        delegate?.btDidChangeScanningState(true)
         print("Starting Bluetooth scan for cycling services...")
         BluetoothLogManager.shared.logScanStart()
         // Phase 1: broad scan for any peripheral (no service filter)
@@ -170,6 +175,7 @@ final class BluetoothManager: NSObject {
     func stopScanning() {
         if !isScanning { return }
         isScanning = false
+        delegate?.btDidChangeScanningState(false)
         print("Stopping Bluetooth scan...")
         BluetoothLogManager.shared.logScanStop()
         centralManager.stopScan()

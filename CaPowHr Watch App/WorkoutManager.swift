@@ -450,20 +450,20 @@ class WorkoutManager: NSObject, ObservableObject {
     // Workout timing handled by WorkoutTimer
     
     // MARK: - Bluetooth Scanning
+    // isScanning is driven by btDidChangeScanningState so the UI tracks the real
+    // radio state, including deferred starts (Bluetooth still powering on) and
+    // the automatic restarts after a disconnect or failed connect.
     func startScanning() {
         scannedDevices.removeAll() // Clear old results
-        isScanning = true
         bluetoothManager.startScanning()
     }
-    
+
     func stopScanning() {
-        isScanning = false
         bluetoothManager.stopScanning()
     }
-    
+
     func connect(to device: ScannedDevice) {
-        bluetoothManager.connect(to: device.id)
-        isScanning = false // Manager stops scanning on connect, but update UI state
+        bluetoothManager.connect(to: device.id) // Manager stops scanning itself
     }
     
     func disconnectSensors() {
@@ -888,6 +888,12 @@ extension WorkoutManager: BluetoothManagerDelegate {
     func btDidDetectDeviceType(_ type: FitnessDeviceType) {
         DispatchQueue.main.async {
             self.detectedDeviceType = type
+        }
+    }
+
+    func btDidChangeScanningState(_ isScanning: Bool) {
+        DispatchQueue.main.async {
+            self.isScanning = isScanning
         }
     }
 }
