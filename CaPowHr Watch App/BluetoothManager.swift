@@ -277,9 +277,14 @@ extension BluetoothManager: CBCentralManagerDelegate {
         _ = updateCachedName(from: advertisementData, for: peripheral)
         let name = cachedDisplayName(for: peripheral)
         
+        // Advertisements arrive at multi-Hz with AllowDuplicates on; keep the
+        // console spam (and its string interpolation cost) out of release builds.
+        // BluetoothLogManager still captures everything when a log session is active.
+        #if DEBUG
         print("Discovered peripheral: \(name)")
         print("Advertisement data: \(advertisementData)")
         print("RSSI: \(RSSI)")
+        #endif
         BluetoothLogManager.shared.logDiscovered(peripheral: peripheral, advertisementData: advertisementData, rssi: RSSI)
 
         // Keep a reference to the peripheral
@@ -408,7 +413,10 @@ extension BluetoothManager: CBPeripheralDelegate {
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         guard let data = characteristic.value else { return }
+        // Notifications stream for the whole workout; don't print them in release builds.
+        #if DEBUG
         print("Received data from characteristic: \(characteristic.uuid)")
+        #endif
         BluetoothLogManager.shared.logRX(data, characteristic: characteristic, peripheral: peripheral, error: error)
         if characteristic.uuid == BluetoothUUIDs.Characteristic.powerMeasurement {
             if let watts = CyclingSensorParser.parsePowerMeasurement(data) {
