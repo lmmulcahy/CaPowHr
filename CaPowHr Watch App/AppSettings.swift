@@ -47,7 +47,6 @@ enum AppSettings {
     static let workoutSaveModeKey = "workoutSaveMode"
     static let stravaSyncEnabledKey = "stravaSyncEnabled"
     static let lastWorkoutTypeKey = "lastWorkoutType"
-    static let structuredWorkoutTemplateKey = "structuredWorkoutTemplate"
     static let fitExportEnabledKey = "fitExportEnabled"
 
     static var distanceUnit: DistanceUnit {

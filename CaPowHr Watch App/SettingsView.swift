@@ -63,13 +63,6 @@ struct SettingsView: View {
                 }
 
                 NavigationLink {
-                    TrainingSettingsView()
-                } label: {
-                    Label("Training", systemImage: "chart.line.uptrend.xyaxis")
-                        .font(.footnote)
-                }
-
-                NavigationLink {
                     CompatibilityListView()
                 } label: {
                     Label("Tested Equipment", systemImage: "checklist")

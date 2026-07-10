@@ -99,35 +99,3 @@ struct MetricsLayoutSettingsView: View {
         .navigationTitle("Metric Layout")
     }
 }
-
-struct TrainingSettingsView: View {
-    @State private var template = StructuredWorkoutTemplate.free
-
-    var body: some View {
-        Form {
-            Section("Structured Workout") {
-                Picker("Template", selection: $template) {
-                    ForEach(StructuredWorkoutTemplate.allCases) { item in
-                        Text(item.displayName).tag(item)
-                    }
-                }
-            }
-        }
-        .navigationTitle("Training")
-        .onChange(of: template) {
-            UserDefaults.standard.set(template.rawValue, forKey: AppSettings.structuredWorkoutTemplateKey)
-        }
-        .onAppear {
-            let raw = UserDefaults.standard.string(forKey: AppSettings.structuredWorkoutTemplateKey) ?? StructuredWorkoutTemplate.free.rawValue
-            template = StructuredWorkoutTemplate(rawValue: raw) ?? .free
-        }
-    }
-}
-
-#if DEBUG
-#Preview {
-    NavigationStack {
-        TrainingSettingsView()
-    }
-}
-#endif

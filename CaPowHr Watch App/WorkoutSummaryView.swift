@@ -16,12 +16,6 @@ struct WorkoutControlsView: View {
                 }
             }
 
-            if let phase = workoutManager.structuredWorkout.currentPhase {
-                Text("\(phase.name) · \(DurationFormatter.minutesSeconds(workoutManager.structuredWorkout.currentPhaseRemainingSeconds))")
-                    .font(.caption2)
-                    .foregroundColor(.orange)
-            }
-
             HStack(spacing: 6) {
                 Button(workoutManager.isWorkoutPaused ? "Resume" : "Pause") {
                     if workoutManager.isWorkoutPaused {
