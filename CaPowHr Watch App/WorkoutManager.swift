@@ -750,13 +750,14 @@ extension WorkoutManager: BluetoothManagerDelegate {
                 // Accumulate deltas rather than mirroring the machine's session
                 // total, so the displayed distance matches what we record.
                 DispatchQueue.main.async { self.distanceMeters += delta }
-                lastDistanceMetersSaved = meters
-                lastDistanceUpdateTime = now
             }
-        } else {
-            lastDistanceUpdateTime = now
-            lastDistanceMetersSaved = meters
         }
+        // Always advance the baselines: stalled frames (delta == 0) shouldn't
+        // stretch the next sample's time window and skew the derived speed, and
+        // a device counter reset (delta < 0) should re-baseline immediately
+        // instead of blocking all future samples until the counter catches up.
+        lastDistanceMetersSaved = meters
+        lastDistanceUpdateTime = now
     }
     
     func btDidUpdateConnectedDevices(_ names: [String]) {
