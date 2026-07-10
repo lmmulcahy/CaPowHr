@@ -97,6 +97,16 @@ class WorkoutManager: NSObject, ObservableObject {
     private var lastFTMSTotalEnergyKcal: Double?
     private var prefersEquipmentHeartRate: Bool = false
     private var lastEquipmentHeartRateAt: Date?
+
+    // MARK: - Stale metric timeout
+    /// Instantaneous metrics freeze at their last value when a sensor stops
+    /// notifying (e.g. the rider stops pedaling and crank events cease).
+    /// Zero them when no update arrives within this window.
+    private static let staleMetricTimeout: TimeInterval = 5
+    private var lastPowerUpdateAt: Date?
+    private var lastCadenceUpdateAt: Date?
+    private var lastSpeedUpdateAt: Date?
+    private var lastStrokeUpdateAt: Date?
     
     // MARK: - Heart Rate Source Preference
     private var heartRateSource: HeartRateSource {
@@ -174,6 +184,7 @@ class WorkoutManager: NSObject, ObservableObject {
                         guard let self else { return }
                         self.workoutDuration = seconds
                         self.structuredWorkout.tick()
+                        self.zeroStaleMetrics()
                     }
                     self.workoutTimer.start()
 
@@ -234,6 +245,7 @@ class WorkoutManager: NSObject, ObservableObject {
             guard let self else { return }
             self.workoutDuration = seconds
             self.structuredWorkout.tick()
+            self.zeroStaleMetrics()
         }
         workoutTimer.start()
 
@@ -359,6 +371,38 @@ class WorkoutManager: NSObject, ObservableObject {
         detectedDeviceType = .unknown
         workoutSummary = nil
         statsTracker.reset()
+        lastPowerUpdateAt = nil
+        lastCadenceUpdateAt = nil
+        lastSpeedUpdateAt = nil
+        lastStrokeUpdateAt = nil
+    }
+
+    /// Called from the 1 Hz workout tick: zero instantaneous metrics whose
+    /// sensor stream has gone quiet so the display doesn't freeze at the
+    /// last-received value after the rider stops.
+    private func zeroStaleMetrics(now: Date = Date()) {
+        func isStale(_ date: Date?) -> Bool {
+            guard let date else { return false }
+            return now.timeIntervalSince(date) > Self.staleMetricTimeout
+        }
+        if isStale(lastPowerUpdateAt) {
+            cyclingPower = 0
+            lastPowerUpdateAt = nil
+        }
+        if isStale(lastCadenceUpdateAt) {
+            cyclingCadence = 0
+            lastCadenceUpdateAt = nil
+        }
+        if isStale(lastSpeedUpdateAt) {
+            cyclingSpeedMps = 0
+            treadmillSpeedMps = 0
+            lastSpeedUpdateAt = nil
+        }
+        if isStale(lastStrokeUpdateAt) {
+            rowerStrokeRatePerMinute = 0
+            rowerPaceSeconds500m = 0
+            lastStrokeUpdateAt = nil
+        }
     }
     
     private func finishWorkout() {
@@ -665,6 +709,7 @@ extension WorkoutManager: BluetoothManagerDelegate {
     }
     
     func btDidUpdatePower(watts: Double) {
+        lastPowerUpdateAt = Date()
         DispatchQueue.main.async {
             self.cyclingPower = watts
             if !self.isWorkoutPaused { self.statsTracker.recordPower(watts) }
@@ -693,6 +738,7 @@ extension WorkoutManager: BluetoothManagerDelegate {
     }
 
     func btDidUpdateCadence(rpm: Double) {
+        lastCadenceUpdateAt = Date()
         DispatchQueue.main.async {
             self.cyclingCadence = rpm
             if !self.isWorkoutPaused { self.statsTracker.recordCadence(rpm) }
@@ -702,6 +748,7 @@ extension WorkoutManager: BluetoothManagerDelegate {
     }
 
     func btDidUpdateSpeed(mps: Double) {
+        lastSpeedUpdateAt = Date()
         DispatchQueue.main.async { self.cyclingSpeedMps = mps }
 
         // Cache latest speed for CSC circumference calibration.
@@ -746,7 +793,10 @@ extension WorkoutManager: BluetoothManagerDelegate {
             if delta > 0 {
                 addDistanceSampleForCurrentWorkout(delta, start: lastTime, end: now)
                 let dt = now.timeIntervalSince(lastTime)
-                if dt > 0 { DispatchQueue.main.async { self.cyclingSpeedMps = delta / dt } }
+                if dt > 0 {
+                    lastSpeedUpdateAt = now
+                    DispatchQueue.main.async { self.cyclingSpeedMps = delta / dt }
+                }
                 // Accumulate deltas rather than mirroring the machine's session
                 // total, so the displayed distance matches what we record.
                 DispatchQueue.main.async { self.distanceMeters += delta }
@@ -801,6 +851,7 @@ extension WorkoutManager: BluetoothManagerDelegate {
     func btDidUpdateTreadmill(_ treadmill: TreadmillData) {
         // Update treadmill-specific metrics
         if let speedMps = treadmill.instantaneousSpeedMps {
+            lastSpeedUpdateAt = Date()
             DispatchQueue.main.async { self.treadmillSpeedMps = speedMps }
             if currentWorkoutType == .indoorRun {
                 hkManager.addSpeedSample(speedMps, isRunning: true)
@@ -819,12 +870,14 @@ extension WorkoutManager: BluetoothManagerDelegate {
     func btDidUpdateRower(_ rower: RowerData) {
         // Update rower-specific metrics
         if let strokeRate = rower.strokeRatePerMinute {
+            lastStrokeUpdateAt = Date()
             DispatchQueue.main.async { self.rowerStrokeRatePerMinute = strokeRate }
         }
         if let strokeCount = rower.strokeCount {
             DispatchQueue.main.async { self.rowerStrokeCount = strokeCount }
         }
         if let pace = rower.instantaneousPaceSeconds500m {
+            lastStrokeUpdateAt = Date()
             DispatchQueue.main.async { self.rowerPaceSeconds500m = pace }
         }
 
