@@ -750,6 +750,7 @@
 		19D0A0312FB9B10000A1B2C3 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = CaPowHrComplications/CaPowHrComplications.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 0;
 				DEVELOPMENT_TEAM = UX8Q7W992R;
@@ -778,6 +779,7 @@
 		19D0A0322FB9B10000A1B2C3 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = CaPowHrComplications/CaPowHrComplications.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 0;
 				DEVELOPMENT_TEAM = UX8Q7W992R;

@@ -22,7 +22,10 @@ struct CaPowHrComplicationProvider: TimelineProvider {
     }
 
     private func currentEntry() -> CaPowHrComplicationEntry {
-        let raw = UserDefaults.standard.string(forKey: "lastWorkoutType") ?? "indoorCycle"
+        // The extension runs in its own process; the watch app mirrors
+        // lastWorkoutType into this App Group (see AppSettings.lastWorkoutType).
+        let defaults = UserDefaults(suiteName: "group.com.MulcahyHeavyIndustries.CaPowHr")
+        let raw = defaults?.string(forKey: "lastWorkoutType") ?? "indoorCycle"
         let title: String
         switch raw {
         case "indoorRun": title = "Start Run"
