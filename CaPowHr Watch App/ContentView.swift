@@ -36,12 +36,15 @@ struct ContentView: View {
                     stravaUploader: stravaUploader
                 )
             } else if workoutManager.isWorkoutActive {
-                switch workoutManager.detectedDeviceType {
-                case .treadmill:
+                // Key the layout off the workout the user chose, not the connected
+                // hardware: a Run started before the treadmill connects should show
+                // the treadmill layout, not the bike one.
+                switch workoutManager.currentWorkoutType {
+                case .indoorRun, .indoorWalk:
                     TreadmillWorkoutView(workoutManager: workoutManager)
-                case .rower:
+                case .indoorRow:
                     RowerWorkoutView(workoutManager: workoutManager)
-                case .bike, .unknown:
+                case .indoorCycle:
                     WorkoutView(workoutManager: workoutManager)
                 }
             } else {

@@ -1,5 +1,23 @@
 import Foundation
 
+enum DurationFormatter {
+    /// "m:ss" under an hour, "h:mm:ss" from an hour up.
+    static func hoursMinutesSeconds(_ duration: TimeInterval) -> String {
+        let hours = Int(duration) / 3600
+        let minutes = Int(duration) % 3600 / 60
+        let seconds = Int(duration) % 60
+        if hours > 0 { return String(format: "%d:%02d:%02d", hours, minutes, seconds) }
+        return String(format: "%d:%02d", minutes, seconds)
+    }
+
+    /// Always "m:ss" (used for structured-workout phase countdowns).
+    static func minutesSeconds(_ duration: TimeInterval) -> String {
+        let minutes = Int(duration) / 60
+        let seconds = Int(duration) % 60
+        return String(format: "%d:%02d", minutes, seconds)
+    }
+}
+
 enum DistanceFormatter {
     static func formatDistance(_ meters: Double, unit: DistanceUnit = AppSettings.distanceUnit, decimals: Int = 1) -> (value: String, unit: String) {
         switch unit {

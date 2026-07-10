@@ -100,6 +100,45 @@ struct CaPowHr_Watch_AppTests {
         }
     }
 
+    @Test func ftmsIndoorBikeData_moreDataBitOmitsSpeed() async throws {
+        // "More Data" continuation packet (flags bit 0 = 1): instantaneous speed is NOT
+        // present; the first field after flags belongs to whatever optional bits are set.
+        // flags = 0x0045 (bit 0 more-data, bit 2 cadence, bit 6 power)
+        // cadence raw = 0x00A0 => 80 rpm, power = 0x00C8 => 200 W
+        let payload = dataFromHex("4500A000C800")
+        let parsed = CyclingSensorParser.parseIndoorBikeData(payload)
+
+        #expect(parsed.flags == 0x0045)
+        #expect(parsed.instantaneousSpeedKph == nil)
+        #expect(parsed.instantaneousCadenceRpm == 80)
+        #expect(parsed.instantaneousPowerWatts == 200)
+    }
+
+    @Test func ftmsIndoorBikeData_moreDataBitWithEnergyFields() async throws {
+        // flags = 0x0101 (bit 0 more-data, bit 8 expended energy)
+        // total = 150 kcal, per hour = 500 kcal, per minute = 8 kcal
+        let payload = dataFromHex("01019600F40108")
+        let parsed = CyclingSensorParser.parseIndoorBikeData(payload)
+
+        #expect(parsed.flags == 0x0101)
+        #expect(parsed.instantaneousSpeedKph == nil)
+        #expect(parsed.totalEnergyKcal == 150)
+        #expect(parsed.energyPerHourKcal == 500)
+        #expect(parsed.energyPerMinuteKcal == 8)
+    }
+
+    @Test func treadmillData_moreDataBitOmitsSpeed() async throws {
+        // flags = 0x0205 (bit 0 more-data, bit 2 total distance, bit 9 heart rate)
+        // total distance (UInt24) = 1500 m, HR = 140 bpm
+        let payload = dataFromHex("0502DC05008C")
+        let parsed = TreadmillSensorParser.parseTreadmillData(payload)
+
+        #expect(parsed.flags == 0x0205)
+        #expect(parsed.instantaneousSpeedKph == nil)
+        #expect(parsed.totalDistanceMeters == 1500)
+        #expect(parsed.heartRateBpm == 140)
+    }
+
     @Test func distanceEstimator_integratesSpeedOverTime() async throws {
         var est = DistanceEstimator()
         let t0 = Date(timeIntervalSince1970: 0)
@@ -205,6 +244,49 @@ struct CaPowHr_Watch_AppTests {
         #expect(parsed.instantaneousSpeedKph == 6.00)
         #expect(parsed.totalDistanceMeters == nil)
         #expect(parsed.inclinePercent == nil)
+    }
+
+    // MARK: - FIT Export Tests
+
+    /// Independent bitwise CRC-16/ARC (reflected poly 0x8005) to cross-check the
+    /// table-based implementation in FITExporter.
+    private func crc16ARC(_ data: Data) -> UInt16 {
+        var crc: UInt16 = 0
+        for byte in data {
+            crc ^= UInt16(byte)
+            for _ in 0..<8 {
+                crc = (crc & 1) != 0 ? (crc >> 1) ^ 0xA001 : crc >> 1
+            }
+        }
+        return crc
+    }
+
+    @Test func fitExporter_producesStructurallyValidFile() async throws {
+        let summary = WorkoutSummaryData(
+            workoutType: .indoorCycle,
+            durationSeconds: 1800,
+            distanceMeters: 15000,
+            averageHeartRate: 142,
+            averagePower: 210,
+            averageCadence: 88,
+            laps: [],
+            isDisplayOnlyMode: false,
+            startDate: Date(timeIntervalSince1970: 1_750_000_000)
+        )
+        let data = FITExporter.buildMinimalFIT(summary: summary)
+
+        // Header: size 14, ".FIT" magic, declared data size matches the payload.
+        #expect(data.count > 16)
+        #expect(data[0] == 0x0E)
+        #expect(String(decoding: data[8..<12], as: UTF8.self) == ".FIT")
+        let dataSize = UInt32(data[4]) | (UInt32(data[5]) << 8) | (UInt32(data[6]) << 16) | (UInt32(data[7]) << 24)
+        #expect(Int(dataSize) == data.count - 14 - 2)
+
+        // Header CRC covers the first 12 bytes; file CRC covers everything before it.
+        let headerCRC = UInt16(data[12]) | (UInt16(data[13]) << 8)
+        #expect(headerCRC == crc16ARC(data.prefix(12)))
+        let fileCRC = UInt16(data[data.count - 2]) | (UInt16(data[data.count - 1]) << 8)
+        #expect(fileCRC == crc16ARC(data.prefix(data.count - 2)))
     }
 
     // MARK: - Rower Data Tests

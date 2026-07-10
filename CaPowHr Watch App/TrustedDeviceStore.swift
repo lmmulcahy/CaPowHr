@@ -31,7 +31,11 @@ enum TrustedDeviceStore {
         var devices = loadAll()
         if let index = devices.firstIndex(where: { $0.id == id }) {
             devices[index].name = name
-            devices[index].deviceType = deviceType
+            // Type detection lags the connect event; don't downgrade a known
+            // type when a pre-detection event reports .unknown.
+            if deviceType != .unknown {
+                devices[index].deviceType = deviceType
+            }
             devices[index].lastConnectedAt = Date()
         } else {
             devices.append(TrustedDevice(id: id, name: name, deviceType: deviceType))

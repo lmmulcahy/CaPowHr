@@ -41,8 +41,11 @@ enum CompatibilityStore {
 
     static func recordSuccessfulConnection(name: String, deviceType: FitnessDeviceType) {
         var records = loadAll()
-        if let index = records.firstIndex(where: { $0.deviceName == name && $0.deviceType == deviceType }) {
+        if let index = recordIndex(for: name, deviceType: deviceType, in: records) {
             records[index].lastConnectedAt = Date()
+            if deviceType != .unknown {
+                records[index].deviceType = deviceType
+            }
         } else {
             records.append(EquipmentCompatibilityRecord(deviceName: name, deviceType: deviceType))
         }
@@ -51,8 +54,11 @@ enum CompatibilityStore {
 
     static func recordSuccessfulWorkout(name: String, deviceType: FitnessDeviceType) {
         var records = loadAll()
-        if let index = records.firstIndex(where: { $0.deviceName == name && $0.deviceType == deviceType }) {
+        if let index = recordIndex(for: name, deviceType: deviceType, in: records) {
             records[index].lastConnectedAt = Date()
+            if deviceType != .unknown {
+                records[index].deviceType = deviceType
+            }
             records[index].successfulWorkoutCount += 1
         } else {
             var record = EquipmentCompatibilityRecord(deviceName: name, deviceType: deviceType)
@@ -60,6 +66,20 @@ enum CompatibilityStore {
             records.append(record)
         }
         save(records)
+    }
+
+    /// Type detection lags the connect event, so the same piece of equipment can be
+    /// reported first as .unknown and then with its real type. Treat records with the
+    /// same name as the same equipment rather than creating an .unknown duplicate.
+    private static func recordIndex(
+        for name: String,
+        deviceType: FitnessDeviceType,
+        in records: [EquipmentCompatibilityRecord]
+    ) -> Int? {
+        if let exact = records.firstIndex(where: { $0.deviceName == name && $0.deviceType == deviceType }) {
+            return exact
+        }
+        return records.firstIndex(where: { $0.deviceName == name })
     }
 
     static func testedDeviceNames() -> [String] {

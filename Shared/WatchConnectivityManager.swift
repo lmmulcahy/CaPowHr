@@ -1,3 +1,11 @@
+//
+//  WatchConnectivityManager.swift
+//  Shared between the watch app and the iOS companion.
+//
+//  Carries the Strava OAuth handshake between the phone (which runs the OAuth
+//  flow) and the watch (which uploads workouts).
+//
+
 import Foundation
 import WatchConnectivity
 
@@ -68,20 +76,24 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
         guard let action = userInfo[StravaConfig.wcMessageKeyAction] as? String else { return }
         switch action {
         case StravaConfig.wcActionStartAuth:
-            delegate?.watchConnectivityDidRequestStravaAuth()
+            DispatchQueue.main.async {
+                self.delegate?.watchConnectivityDidRequestStravaAuth()
+            }
         case StravaConfig.wcActionTokensUpdated:
             guard
                 let accessToken = userInfo[StravaConfig.wcKeyAccessToken] as? String,
                 let refreshToken = userInfo[StravaConfig.wcKeyRefreshToken] as? String,
                 let expiresAt = userInfo[StravaConfig.wcKeyExpiresAt] as? Double
             else { return }
-            delegate?.watchConnectivityDidReceiveTokens(
-                accessToken: accessToken,
-                refreshToken: refreshToken,
-                expiresAt: expiresAt,
-                athleteId: userInfo[StravaConfig.wcKeyAthleteId] as? String,
-                athleteName: userInfo[StravaConfig.wcKeyAthleteName] as? String
-            )
+            DispatchQueue.main.async {
+                self.delegate?.watchConnectivityDidReceiveTokens(
+                    accessToken: accessToken,
+                    refreshToken: refreshToken,
+                    expiresAt: expiresAt,
+                    athleteId: userInfo[StravaConfig.wcKeyAthleteId] as? String,
+                    athleteName: userInfo[StravaConfig.wcKeyAthleteName] as? String
+                )
+            }
         default:
             break
         }
@@ -104,6 +116,13 @@ extension WatchConnectivityManager: WCSessionDelegate {
     func sessionDidDeactivate(_ session: WCSession) {
         session.activate()
     }
+
+    func sessionWatchStateDidChange(_ session: WCSession) {
+        DispatchQueue.main.async {
+            self.isPaired = session.isPaired
+            self.isWatchAppInstalled = session.isWatchAppInstalled
+        }
+    }
     #endif
 
     func sessionReachabilityDidChange(_ session: WCSession) {
@@ -120,36 +139,3 @@ extension WatchConnectivityManager: WCSessionDelegate {
         handleIncoming(message)
     }
 }
-
-#if os(watchOS)
-extension StravaAuthManager: WatchConnectivityDelegate {
-    func watchConnectivityDidRequestStravaAuth() {}
-
-    func watchConnectivityDidReceiveTokens(
-        accessToken: String,
-        refreshToken: String,
-        expiresAt: Double,
-        athleteId: String?,
-        athleteName: String?
-    ) {
-        Task { @MainActor in
-            do {
-                let keychain = KeychainStore(service: StravaConfig.keychainService)
-                try keychain.upsertString(accessToken, account: StravaConfig.accessTokenKey)
-                try keychain.upsertString(refreshToken, account: StravaConfig.refreshTokenKey)
-                try keychain.upsertString(String(expiresAt), account: StravaConfig.expiresAtKey)
-                if let athleteId {
-                    try keychain.upsertString(athleteId, account: StravaConfig.athleteIdKey)
-                }
-                if let athleteName {
-                    self.athleteName = athleteName
-                }
-                isAuthenticated = true
-                authError = nil
-            } catch {
-                authError = error.localizedDescription
-            }
-        }
-    }
-}
-#endif

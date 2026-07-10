@@ -98,9 +98,13 @@ final class StravaClient {
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         
-        // Format date as ISO 8601 local time
-        let dateFormatter = ISO8601DateFormatter()
-        dateFormatter.formatOptions = [.withInternetDateTime]
+        // start_date_local must be the athlete's local wall-clock time.
+        // ISO8601DateFormatter always renders UTC, which shifted activity start
+        // times by the timezone offset; format in the current timezone instead.
+        let dateFormatter = DateFormatter()
+        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+        dateFormatter.timeZone = .current
+        dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss'Z'"
         let startDateLocal = dateFormatter.string(from: startDate)
         
         var bodyParams: [String: String] = [

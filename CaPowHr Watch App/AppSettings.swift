@@ -1,4 +1,5 @@
 import Foundation
+import WidgetKit
 
 enum DistanceUnit: String, CaseIterable, Identifiable {
     case miles
@@ -36,6 +37,11 @@ enum WorkoutSaveMode: String, CaseIterable, Identifiable {
 }
 
 enum AppSettings {
+    /// App Group shared with the complications extension (a separate process with
+    /// its own UserDefaults domain — anything the complication needs must go here).
+    static let appGroupIdentifier = "group.com.MulcahyHeavyIndustries.CaPowHr"
+    static let sharedDefaults = UserDefaults(suiteName: appGroupIdentifier)
+
     static let heartRateSourceKey = "heartRateSource"
     static let distanceUnitKey = "distanceUnit"
     static let workoutSaveModeKey = "workoutSaveMode"
@@ -72,6 +78,10 @@ enum AppSettings {
         }
         set {
             UserDefaults.standard.set(newValue.rawValue, forKey: lastWorkoutTypeKey)
+            // Mirror into the App Group and refresh the complication so its
+            // quick-start button tracks the last workout type.
+            sharedDefaults?.set(newValue.rawValue, forKey: lastWorkoutTypeKey)
+            WidgetCenter.shared.reloadAllTimelines()
         }
     }
 

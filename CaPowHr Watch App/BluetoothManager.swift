@@ -84,6 +84,10 @@ protocol BluetoothManagerDelegate: AnyObject {
 
     /// Raw parsed CSC Measurement values (0x2A5B). Used for distance estimation when wheel data is present.
     func btDidUpdateCSC(wheelRev: UInt32?, wheelTime: UInt16?, crankRev: UInt16?, crankTime: UInt16?)
+
+    /// Emitted whenever scanning starts or stops, including the automatic restarts
+    /// after a disconnect/failed connect, so UI state can track the real radio state.
+    func btDidChangeScanningState(_ isScanning: Bool)
 }
 
 final class BluetoothManager: NSObject {
@@ -144,6 +148,7 @@ final class BluetoothManager: NSObject {
         // User explicitly began scanning; allow auto-reconnect behavior going forward
         allowAutoReconnect = true
         isScanning = true
+        delegate?.btDidChangeScanningState(true)
         print("Starting Bluetooth scan for cycling services...")
         BluetoothLogManager.shared.logScanStart()
         // Phase 1: broad scan for any peripheral (no service filter)
@@ -170,6 +175,7 @@ final class BluetoothManager: NSObject {
     func stopScanning() {
         if !isScanning { return }
         isScanning = false
+        delegate?.btDidChangeScanningState(false)
         print("Stopping Bluetooth scan...")
         BluetoothLogManager.shared.logScanStop()
         centralManager.stopScan()
@@ -271,9 +277,14 @@ extension BluetoothManager: CBCentralManagerDelegate {
         _ = updateCachedName(from: advertisementData, for: peripheral)
         let name = cachedDisplayName(for: peripheral)
         
+        // Advertisements arrive at multi-Hz with AllowDuplicates on; keep the
+        // console spam (and its string interpolation cost) out of release builds.
+        // BluetoothLogManager still captures everything when a log session is active.
+        #if DEBUG
         print("Discovered peripheral: \(name)")
         print("Advertisement data: \(advertisementData)")
         print("RSSI: \(RSSI)")
+        #endif
         BluetoothLogManager.shared.logDiscovered(peripheral: peripheral, advertisementData: advertisementData, rssi: RSSI)
 
         // Keep a reference to the peripheral
@@ -375,17 +386,26 @@ extension BluetoothManager: CBPeripheralDelegate {
                 // Subscribe to notifications for streaming sensor data
                 peripheral.setNotifyValue(true, for: characteristic)
                 BluetoothLogManager.shared.logNotifySet(true, characteristic: characteristic, peripheral: peripheral)
-                
+
                 // Detect device type based on which characteristic we're subscribing to
-                if characteristic.uuid == BluetoothUUIDs.Characteristic.indoorBikeData {
-                    detectedDeviceTypes[peripheral.identifier] = .bike
-                    delegate?.btDidDetectDeviceType(.bike)
-                } else if characteristic.uuid == BluetoothUUIDs.Characteristic.treadmillData {
-                    detectedDeviceTypes[peripheral.identifier] = .treadmill
-                    delegate?.btDidDetectDeviceType(.treadmill)
-                } else if characteristic.uuid == BluetoothUUIDs.Characteristic.rowerData {
-                    detectedDeviceTypes[peripheral.identifier] = .rower
-                    delegate?.btDidDetectDeviceType(.rower)
+                let detected: FitnessDeviceType?
+                switch characteristic.uuid {
+                case BluetoothUUIDs.Characteristic.indoorBikeData: detected = .bike
+                case BluetoothUUIDs.Characteristic.treadmillData: detected = .treadmill
+                case BluetoothUUIDs.Characteristic.rowerData: detected = .rower
+                default: detected = nil
+                }
+                if let detected {
+                    detectedDeviceTypes[peripheral.identifier] = detected
+                    delegate?.btDidDetectDeviceType(detected)
+                    // Characteristic discovery happens after didConnect, so the connect
+                    // event carried .unknown. Re-emit it now that the type is known so
+                    // trusted-device and compatibility records get the real type.
+                    delegate?.btDidConnectDevice(
+                        id: peripheral.identifier,
+                        name: cachedDisplayName(for: peripheral),
+                        deviceType: detected
+                    )
                 }
             }
         }
@@ -393,7 +413,10 @@ extension BluetoothManager: CBPeripheralDelegate {
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         guard let data = characteristic.value else { return }
+        // Notifications stream for the whole workout; don't print them in release builds.
+        #if DEBUG
         print("Received data from characteristic: \(characteristic.uuid)")
+        #endif
         BluetoothLogManager.shared.logRX(data, characteristic: characteristic, peripheral: peripheral, error: error)
         if characteristic.uuid == BluetoothUUIDs.Characteristic.powerMeasurement {
             if let watts = CyclingSensorParser.parsePowerMeasurement(data) {

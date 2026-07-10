@@ -18,13 +18,15 @@ struct ScannedDevice: Identifiable, Hashable {
 
 enum HeartRateSource: String, CaseIterable {
     case auto = "auto"
+    /// Prefer HR reported by the connected equipment (bike, treadmill, or rower).
+    /// The raw value stays "bike" for backwards compatibility with stored settings.
     case bike = "bike"
     case watch = "watch"
-    
+
     var displayName: String {
         switch self {
         case .auto: return "Auto (default)"
-        case .bike: return "Bike"
+        case .bike: return "Equipment"
         case .watch: return "Apple Watch"
         }
     }
@@ -95,8 +97,18 @@ class WorkoutManager: NSObject, ObservableObject {
     private var lastSpeedForCSCCalibrationMps: Double?
     private var hasSeenFTMSEnergy: Bool = false
     private var lastFTMSTotalEnergyKcal: Double?
-    private var prefersBikeHeartRate: Bool = false
-    private var lastBikeHeartRateAt: Date?
+    private var prefersEquipmentHeartRate: Bool = false
+    private var lastEquipmentHeartRateAt: Date?
+
+    // MARK: - Stale metric timeout
+    /// Instantaneous metrics freeze at their last value when a sensor stops
+    /// notifying (e.g. the rider stops pedaling and crank events cease).
+    /// Zero them when no update arrives within this window.
+    private static let staleMetricTimeout: TimeInterval = 5
+    private var lastPowerUpdateAt: Date?
+    private var lastCadenceUpdateAt: Date?
+    private var lastSpeedUpdateAt: Date?
+    private var lastStrokeUpdateAt: Date?
     
     // MARK: - Heart Rate Source Preference
     private var heartRateSource: HeartRateSource {
@@ -174,6 +186,7 @@ class WorkoutManager: NSObject, ObservableObject {
                         guard let self else { return }
                         self.workoutDuration = seconds
                         self.structuredWorkout.tick()
+                        self.zeroStaleMetrics()
                     }
                     self.workoutTimer.start()
 
@@ -216,8 +229,8 @@ class WorkoutManager: NSObject, ObservableObject {
     }
 
     private func resetHeartRateTracking() {
-        prefersBikeHeartRate = false
-        lastBikeHeartRateAt = nil
+        prefersEquipmentHeartRate = false
+        lastEquipmentHeartRateAt = nil
         DispatchQueue.main.async { self.heartRate = 0 }
     }
 
@@ -234,6 +247,7 @@ class WorkoutManager: NSObject, ObservableObject {
             guard let self else { return }
             self.workoutDuration = seconds
             self.structuredWorkout.tick()
+            self.zeroStaleMetrics()
         }
         workoutTimer.start()
 
@@ -260,6 +274,14 @@ class WorkoutManager: NSObject, ObservableObject {
         if !isDisplayOnlyMode {
             hkManager.resumeWorkout()
         }
+        // Re-baseline the accumulators so anything the machine counted during the
+        // pause (or a stale pre-pause timestamp) isn't booked as a burst on the
+        // first post-resume packet.
+        lastEnergyUpdateTime = Date()
+        lastFTMSTotalEnergyKcal = nil
+        lastDistanceUpdateTime = nil
+        distanceEstimator.reset()
+        cscDistanceEstimator.rebaseline()
     }
 
     func recordLap() {
@@ -351,6 +373,38 @@ class WorkoutManager: NSObject, ObservableObject {
         detectedDeviceType = .unknown
         workoutSummary = nil
         statsTracker.reset()
+        lastPowerUpdateAt = nil
+        lastCadenceUpdateAt = nil
+        lastSpeedUpdateAt = nil
+        lastStrokeUpdateAt = nil
+    }
+
+    /// Called from the 1 Hz workout tick: zero instantaneous metrics whose
+    /// sensor stream has gone quiet so the display doesn't freeze at the
+    /// last-received value after the rider stops.
+    private func zeroStaleMetrics(now: Date = Date()) {
+        func isStale(_ date: Date?) -> Bool {
+            guard let date else { return false }
+            return now.timeIntervalSince(date) > Self.staleMetricTimeout
+        }
+        if isStale(lastPowerUpdateAt) {
+            cyclingPower = 0
+            lastPowerUpdateAt = nil
+        }
+        if isStale(lastCadenceUpdateAt) {
+            cyclingCadence = 0
+            lastCadenceUpdateAt = nil
+        }
+        if isStale(lastSpeedUpdateAt) {
+            cyclingSpeedMps = 0
+            treadmillSpeedMps = 0
+            lastSpeedUpdateAt = nil
+        }
+        if isStale(lastStrokeUpdateAt) {
+            rowerStrokeRatePerMinute = 0
+            rowerPaceSeconds500m = 0
+            lastStrokeUpdateAt = nil
+        }
     }
     
     private func finishWorkout() {
@@ -398,20 +452,20 @@ class WorkoutManager: NSObject, ObservableObject {
     // Workout timing handled by WorkoutTimer
     
     // MARK: - Bluetooth Scanning
+    // isScanning is driven by btDidChangeScanningState so the UI tracks the real
+    // radio state, including deferred starts (Bluetooth still powering on) and
+    // the automatic restarts after a disconnect or failed connect.
     func startScanning() {
         scannedDevices.removeAll() // Clear old results
-        isScanning = true
         bluetoothManager.startScanning()
     }
-    
+
     func stopScanning() {
-        isScanning = false
         bluetoothManager.stopScanning()
     }
-    
+
     func connect(to device: ScannedDevice) {
-        bluetoothManager.connect(to: device.id)
-        isScanning = false // Manager stops scanning on connect, but update UI state
+        bluetoothManager.connect(to: device.id) // Manager stops scanning itself
     }
     
     func disconnectSensors() {
@@ -435,6 +489,91 @@ class WorkoutManager: NSObject, ObservableObject {
         case .indoorCycle, .indoorRow:
             hkManager.addDistanceSample(meters, start: start, end: end)
         }
+    }
+
+    // MARK: - Shared equipment data handlers
+
+    /// Applies an FTMS heart-rate field (bike, treadmill, or rower) according to the user's
+    /// heart-rate source preference. `nil` means the packet omitted the HR field entirely,
+    /// which is distinct from an explicit zero reading.
+    private func handleEquipmentHeartRate(_ heartRateBpm: UInt8?) {
+        let source = heartRateSource
+
+        guard let hr = heartRateBpm else {
+            // HR field missing from this packet.
+            switch source {
+            case .bike:
+                prefersEquipmentHeartRate = true
+                DispatchQueue.main.async { self.heartRate = 0 }
+            case .watch:
+                prefersEquipmentHeartRate = false
+            case .auto:
+                // If equipment HR disappears for a while, allow watch HR to take over again.
+                if prefersEquipmentHeartRate, let last = lastEquipmentHeartRateAt,
+                   Date().timeIntervalSince(last) > 10 {
+                    prefersEquipmentHeartRate = false
+                }
+            }
+            return
+        }
+
+        if hr > 0 {
+            let bpm = Double(hr)
+            lastEquipmentHeartRateAt = Date()
+            switch source {
+            case .bike, .auto:
+                prefersEquipmentHeartRate = true
+                DispatchQueue.main.async {
+                    self.heartRate = bpm
+                    // HR samples keep flowing to HealthKit during a pause (the chart
+                    // should stay continuous) but shouldn't skew the workout average.
+                    if !self.isWorkoutPaused { self.statsTracker.recordHeartRate(bpm) }
+                }
+                hkManager.addHeartRateSample(bpm)
+            case .watch:
+                prefersEquipmentHeartRate = false
+            }
+        } else {
+            // Explicit zero: never let it "win" against the watch in auto mode.
+            switch source {
+            case .bike:
+                prefersEquipmentHeartRate = true
+                lastEquipmentHeartRateAt = nil
+                DispatchQueue.main.async { self.heartRate = 0 }
+            case .watch:
+                prefersEquipmentHeartRate = false
+            case .auto:
+                prefersEquipmentHeartRate = false
+                lastEquipmentHeartRateAt = nil
+            }
+        }
+    }
+
+    /// Applies an FTMS Expended Energy total (kcal) from any machine type, writing the delta
+    /// to HealthKit. Marks FTMS energy as seen so the power-based fallback stops accumulating.
+    private func handleEquipmentEnergy(totalKcal: UInt16?) {
+        guard let total = totalKcal else { return }
+        let totalKcalValue = Double(total)
+        hasSeenFTMSEnergy = true
+
+        // While paused, don't accrue energy; resumeWorkout() clears the baseline
+        // so the first post-resume packet re-baselines against the machine total.
+        guard !isWorkoutPaused else { return }
+
+        let now = Date()
+        if let lastTotal = lastFTMSTotalEnergyKcal, let lastTime = lastEnergyUpdateTime {
+            let delta = totalKcalValue - lastTotal
+            // Guard against device reset/wrap or non-monotonic streams.
+            if delta > 0 {
+                hkManager.addEnergyBurnedSample(delta, start: lastTime, end: now)
+                // Accumulate deltas rather than mirroring the machine's session
+                // total, so the displayed calories match what we record.
+                DispatchQueue.main.async { self.activeEnergyKcal += delta }
+            }
+        }
+
+        lastFTMSTotalEnergyKcal = totalKcalValue
+        lastEnergyUpdateTime = now
     }
 }
 
@@ -572,10 +711,14 @@ extension WorkoutManager: BluetoothManagerDelegate {
     }
     
     func btDidUpdatePower(watts: Double) {
+        lastPowerUpdateAt = Date()
         DispatchQueue.main.async {
             self.cyclingPower = watts
-            self.statsTracker.recordPower(watts)
+            if !self.isWorkoutPaused { self.statsTracker.recordPower(watts) }
         }
+        // While paused, keep showing live values but don't record samples or
+        // accrue energy; resumeWorkout() re-baselines the accumulators.
+        guard !isWorkoutPaused else { return }
         hkManager.addPowerSample(watts)
 
         // Fallback energy estimation from mechanical power if the bike doesn't provide FTMS expended energy.
@@ -589,30 +732,38 @@ extension WorkoutManager: BluetoothManagerDelegate {
                 let kcal = joules / 4184.0
                 if kcal > 0 {
                     hkManager.addEnergyBurnedSample(kcal, start: last, end: now)
+                    DispatchQueue.main.async { self.activeEnergyKcal += kcal }
                 }
             }
         }
         lastEnergyUpdateTime = now
     }
-    
+
     func btDidUpdateCadence(rpm: Double) {
+        lastCadenceUpdateAt = Date()
         DispatchQueue.main.async {
             self.cyclingCadence = rpm
-            self.statsTracker.recordCadence(rpm)
+            if !self.isWorkoutPaused { self.statsTracker.recordCadence(rpm) }
         }
+        guard !isWorkoutPaused else { return }
         hkManager.addCadenceSample(rpm)
     }
-    
+
     func btDidUpdateSpeed(mps: Double) {
+        lastSpeedUpdateAt = Date()
         DispatchQueue.main.async { self.cyclingSpeedMps = mps }
+
+        // Cache latest speed for CSC circumference calibration.
+        lastSpeedForCSCCalibrationMps = mps
+
+        // While paused, show live speed but don't write samples or integrate distance.
+        guard !isWorkoutPaused else { return }
+
         if currentWorkoutType == .indoorRun {
             hkManager.addSpeedSample(mps, isRunning: true)
         } else if currentWorkoutType == .indoorWalk {
             hkManager.addSpeedSample(mps, isRunning: false)
         }
-
-        // Cache latest speed for CSC circumference calibration.
-        lastSpeedForCSCCalibrationMps = mps
 
         // If the bike provides cumulative distance, prefer that.
         guard !hasSeenFTMSTotalDistance else { return }
@@ -627,26 +778,38 @@ extension WorkoutManager: BluetoothManagerDelegate {
         DispatchQueue.main.async { self.distanceMeters += sample.deltaMeters }
         addDistanceSampleForCurrentWorkout(sample.deltaMeters, start: sample.start, end: sample.end)
     }
-    
+
     func btDidUpdateTotalDistance(meters: Double) {
         hasSeenFTMSTotalDistance = true
         distanceEstimator.reset()
         cscDistanceEstimator.reset()
-        DispatchQueue.main.async { self.distanceMeters = meters }
+
+        // While paused, ignore machine totals entirely; resumeWorkout() clears
+        // lastDistanceUpdateTime so the next packet re-baselines against the
+        // machine's cumulative counter and pause movement is excluded.
+        guard !isWorkoutPaused else { return }
+
         let now = Date()
         if let lastTime = lastDistanceUpdateTime {
             let delta = meters - lastDistanceMetersSaved
             if delta > 0 {
                 addDistanceSampleForCurrentWorkout(delta, start: lastTime, end: now)
                 let dt = now.timeIntervalSince(lastTime)
-                if dt > 0 { DispatchQueue.main.async { self.cyclingSpeedMps = delta / dt } }
-                lastDistanceMetersSaved = meters
-                lastDistanceUpdateTime = now
+                if dt > 0 {
+                    lastSpeedUpdateAt = now
+                    DispatchQueue.main.async { self.cyclingSpeedMps = delta / dt }
+                }
+                // Accumulate deltas rather than mirroring the machine's session
+                // total, so the displayed distance matches what we record.
+                DispatchQueue.main.async { self.distanceMeters += delta }
             }
-        } else {
-            lastDistanceUpdateTime = now
-            lastDistanceMetersSaved = meters
         }
+        // Always advance the baselines: stalled frames (delta == 0) shouldn't
+        // stretch the next sample's time window and skew the derived speed, and
+        // a device counter reset (delta < 0) should re-baseline immediately
+        // instead of blocking all future samples until the counter catches up.
+        lastDistanceMetersSaved = meters
+        lastDistanceUpdateTime = now
     }
     
     func btDidUpdateConnectedDevices(_ names: [String]) {
@@ -654,90 +817,18 @@ extension WorkoutManager: BluetoothManagerDelegate {
     }
 
     func btDidUpdateIndoorBike(_ bikeData: IndoorBikeData) {
-        let source = heartRateSource
-        
-        // Handle bike heart rate data based on user preference
-        if let hr = bikeData.heartRateBpm {
-            if hr > 0 {
-                let bpm = Double(hr)
-                lastBikeHeartRateAt = Date()
-                
-                switch source {
-                case .bike:
-                    // Always use bike HR when preference is bike
-                    prefersBikeHeartRate = true
-                    DispatchQueue.main.async { self.heartRate = bpm }
-                    hkManager.addHeartRateSample(bpm)
-                case .watch:
-                    // Ignore bike HR when preference is watch
-                    prefersBikeHeartRate = false
-                case .auto:
-                    // Auto mode: prefer bike HR when present and non-zero
-                    prefersBikeHeartRate = true
-                    DispatchQueue.main.async { self.heartRate = bpm }
-                    hkManager.addHeartRateSample(bpm)
-                }
-            } else {
-                // Explicit zero: handle based on mode
-                switch source {
-                case .bike:
-                    // In bike mode, set HR to zero when bike reports zero
-                    prefersBikeHeartRate = true
-                    lastBikeHeartRateAt = nil
-                    DispatchQueue.main.async { self.heartRate = 0 }
-                case .watch:
-                    // In watch mode, ignore bike HR
-                    prefersBikeHeartRate = false
-                case .auto:
-                    // Auto mode: explicit zero should not "win" against the watch
-                    prefersBikeHeartRate = false
-                    lastBikeHeartRateAt = nil
-                }
-            }
-        } else {
-            // Bike HR field is missing from FTMS data
-            switch source {
-            case .bike:
-                // In bike mode, set HR to zero when bike HR is not available
-                prefersBikeHeartRate = true
-                DispatchQueue.main.async { self.heartRate = 0 }
-            case .watch:
-                // In watch mode, ignore bike HR
-                prefersBikeHeartRate = false
-            case .auto:
-                // Auto mode: If bike HR disappears for a while, allow watch HR to take over again
-                if prefersBikeHeartRate, let last = lastBikeHeartRateAt {
-                    if Date().timeIntervalSince(last) > 10 {
-                        prefersBikeHeartRate = false
-                    }
-                }
-            }
-        }
-
-        // Prefer device-reported expended energy (kcal) when present.
-        if let total = bikeData.totalEnergyKcal {
-            let totalKcal = Double(total)
-            let now = Date()
-            hasSeenFTMSEnergy = true
-            DispatchQueue.main.async { self.activeEnergyKcal = totalKcal }
-
-            if let lastTotal = lastFTMSTotalEnergyKcal, let lastTime = lastEnergyUpdateTime {
-                let delta = totalKcal - lastTotal
-                // Guard against device reset/wrap or non-monotonic streams.
-                if delta > 0 {
-                    hkManager.addEnergyBurnedSample(delta, start: lastTime, end: now)
-                }
-            }
-
-            lastFTMSTotalEnergyKcal = totalKcal
-            lastEnergyUpdateTime = now
-        }
+        handleEquipmentHeartRate(bikeData.heartRateBpm)
+        handleEquipmentEnergy(totalKcal: bikeData.totalEnergyKcal)
     }
 
     func btDidUpdateCSC(wheelRev: UInt32?, wheelTime: UInt16?, crankRev: UInt16?, crankTime: UInt16?) {
         // Distance estimation from CSC wheel data (if present). Many bikes send crank-only; in that case we do nothing.
         guard !hasSeenFTMSTotalDistance else { return }
         guard let rev = wheelRev, let time = wheelTime else { return }
+
+        // While paused, don't accrue wheel distance; resumeWorkout() re-baselines
+        // the estimator so pause revolutions aren't counted.
+        guard !isWorkoutPaused else { return }
 
         // Mark CSC distance as our preferred non-FTMS-distance source and disable speed integration.
         hasSeenCSCDistance = true
@@ -762,6 +853,7 @@ extension WorkoutManager: BluetoothManagerDelegate {
     func btDidUpdateTreadmill(_ treadmill: TreadmillData) {
         // Update treadmill-specific metrics
         if let speedMps = treadmill.instantaneousSpeedMps {
+            lastSpeedUpdateAt = Date()
             DispatchQueue.main.async { self.treadmillSpeedMps = speedMps }
             if currentWorkoutType == .indoorRun {
                 hkManager.addSpeedSample(speedMps, isRunning: true)
@@ -772,130 +864,38 @@ extension WorkoutManager: BluetoothManagerDelegate {
         if let incline = treadmill.inclinePercent {
             DispatchQueue.main.async { self.treadmillInclinePercent = incline }
         }
-        
-        // Handle heart rate from treadmill
-        let source = heartRateSource
-        if let hr = treadmill.heartRateBpm {
-            if hr > 0 {
-                let bpm = Double(hr)
-                lastBikeHeartRateAt = Date()
-                
-                switch source {
-                case .bike:
-                    // "bike" preference means prefer equipment HR
-                    prefersBikeHeartRate = true
-                    DispatchQueue.main.async { self.heartRate = bpm }
-                    hkManager.addHeartRateSample(bpm)
-                case .watch:
-                    prefersBikeHeartRate = false
-                case .auto:
-                    prefersBikeHeartRate = true
-                    DispatchQueue.main.async { self.heartRate = bpm }
-                    hkManager.addHeartRateSample(bpm)
-                }
-            } else {
-                switch source {
-                case .bike:
-                    prefersBikeHeartRate = true
-                    lastBikeHeartRateAt = nil
-                    DispatchQueue.main.async { self.heartRate = 0 }
-                case .watch:
-                    prefersBikeHeartRate = false
-                case .auto:
-                    prefersBikeHeartRate = false
-                    lastBikeHeartRateAt = nil
-                }
-            }
-        }
-        
-        // Handle energy from treadmill (same logic as bike)
-        if let total = treadmill.totalEnergyKcal {
-            let totalKcal = Double(total)
-            let now = Date()
-            hasSeenFTMSEnergy = true
-            DispatchQueue.main.async { self.activeEnergyKcal = totalKcal }
-            
-            if let lastTotal = lastFTMSTotalEnergyKcal, let lastTime = lastEnergyUpdateTime {
-                let delta = totalKcal - lastTotal
-                if delta > 0 {
-                    hkManager.addEnergyBurnedSample(delta, start: lastTime, end: now)
-                }
-            }
-            
-            lastFTMSTotalEnergyKcal = totalKcal
-            lastEnergyUpdateTime = now
-        }
+
+        handleEquipmentHeartRate(treadmill.heartRateBpm)
+        handleEquipmentEnergy(totalKcal: treadmill.totalEnergyKcal)
     }
 
     func btDidUpdateRower(_ rower: RowerData) {
         // Update rower-specific metrics
         if let strokeRate = rower.strokeRatePerMinute {
+            lastStrokeUpdateAt = Date()
             DispatchQueue.main.async { self.rowerStrokeRatePerMinute = strokeRate }
         }
         if let strokeCount = rower.strokeCount {
             DispatchQueue.main.async { self.rowerStrokeCount = strokeCount }
         }
         if let pace = rower.instantaneousPaceSeconds500m {
+            lastStrokeUpdateAt = Date()
             DispatchQueue.main.async { self.rowerPaceSeconds500m = pace }
         }
-        
-        // Handle heart rate from rower
-        let source = heartRateSource
-        if let hr = rower.heartRateBpm {
-            if hr > 0 {
-                let bpm = Double(hr)
-                lastBikeHeartRateAt = Date()
-                
-                switch source {
-                case .bike:
-                    // "bike" preference means prefer equipment HR
-                    prefersBikeHeartRate = true
-                    DispatchQueue.main.async { self.heartRate = bpm }
-                    hkManager.addHeartRateSample(bpm)
-                case .watch:
-                    prefersBikeHeartRate = false
-                case .auto:
-                    prefersBikeHeartRate = true
-                    DispatchQueue.main.async { self.heartRate = bpm }
-                    hkManager.addHeartRateSample(bpm)
-                }
-            } else {
-                switch source {
-                case .bike:
-                    prefersBikeHeartRate = true
-                    lastBikeHeartRateAt = nil
-                    DispatchQueue.main.async { self.heartRate = 0 }
-                case .watch:
-                    prefersBikeHeartRate = false
-                case .auto:
-                    prefersBikeHeartRate = false
-                    lastBikeHeartRateAt = nil
-                }
-            }
-        }
-        
-        // Handle energy from rower (same logic as bike/treadmill)
-        if let total = rower.totalEnergyKcal {
-            let totalKcal = Double(total)
-            let now = Date()
-            hasSeenFTMSEnergy = true
-            DispatchQueue.main.async { self.activeEnergyKcal = totalKcal }
-            
-            if let lastTotal = lastFTMSTotalEnergyKcal, let lastTime = lastEnergyUpdateTime {
-                let delta = totalKcal - lastTotal
-                if delta > 0 {
-                    hkManager.addEnergyBurnedSample(delta, start: lastTime, end: now)
-                }
-            }
-            
-            lastFTMSTotalEnergyKcal = totalKcal
-            lastEnergyUpdateTime = now
-        }
+
+        handleEquipmentHeartRate(rower.heartRateBpm)
+        handleEquipmentEnergy(totalKcal: rower.totalEnergyKcal)
     }
 
     func btDidDetectDeviceType(_ type: FitnessDeviceType) {
         DispatchQueue.main.async {
             self.detectedDeviceType = type
+        }
+    }
+
+    func btDidChangeScanningState(_ isScanning: Bool) {
+        DispatchQueue.main.async {
+            self.isScanning = isScanning
         }
     }
 }
@@ -913,15 +913,15 @@ extension WorkoutManager: HealthKitManagerDelegate {
             // In watch mode, always use watch HR
             DispatchQueue.main.async {
                 self.heartRate = bpm
-                self.statsTracker.recordHeartRate(bpm)
+                if !self.isWorkoutPaused { self.statsTracker.recordHeartRate(bpm) }
             }
             hkManager.addHeartRateSample(bpm)
         case .auto:
-            // Auto mode: only use watch HR if we are not actively receiving bike HR
-            if prefersBikeHeartRate { return }
+            // Auto mode: only use watch HR if we are not actively receiving equipment HR
+            if prefersEquipmentHeartRate { return }
             DispatchQueue.main.async {
                 self.heartRate = bpm
-                self.statsTracker.recordHeartRate(bpm)
+                if !self.isWorkoutPaused { self.statsTracker.recordHeartRate(bpm) }
             }
             hkManager.addHeartRateSample(bpm)
         }
