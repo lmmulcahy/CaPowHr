@@ -113,6 +113,11 @@
 			path = "CaPowHr Watch App";
 			sourceTree = "<group>";
 		};
+		19E0AA012FB9C10000A1B2C3 /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Shared;
+			sourceTree = "<group>";
+		};
 		19B1A0D92E78FB0E003B71A0 /* CaPowHr Watch AppTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = "CaPowHr Watch AppTests";
@@ -192,6 +197,7 @@
 				19B1A0D92E78FB0E003B71A0 /* CaPowHr Watch AppTests */,
 				19B1A0E32E78FB0E003B71A0 /* CaPowHr Watch AppUITests */,
 				19B1A0C22E78FB0D003B71A0 /* Products */,
+				19E0AA012FB9C10000A1B2C3 /* Shared */,
 				19DBE6432E7A4B55008CF7C3 /* Recovered References */,
 			);
 			sourceTree = "<group>";
@@ -235,6 +241,7 @@
 				19B1A0CA2E78FB0D003B71A0 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
+				19E0AA012FB9C10000A1B2C3 /* Shared */,
 				19D0A0122FB9B10000A1B2C3 /* CaPowHr */,
 			);
 			name = CaPowHr;
@@ -259,6 +266,7 @@
 				19D0A0412FB9B10000A1B2C3 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
+				19E0AA012FB9C10000A1B2C3 /* Shared */,
 				19B1A0CB2E78FB0D003B71A0 /* CaPowHr Watch App */,
 			);
 			name = "CaPowHr Watch App";

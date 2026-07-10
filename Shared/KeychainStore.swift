@@ -1,3 +1,8 @@
+//
+//  KeychainStore.swift
+//  Shared between the watch app and the iOS companion.
+//
+
 import Foundation
 import Security
 
@@ -20,6 +25,10 @@ final class KeychainStore {
 
     init(service: String) {
         self.service = service
+    }
+
+    static func shared() -> KeychainStore {
+        KeychainStore(service: StravaConfig.keychainService)
     }
 
     func readString(account: String) throws -> String? {
@@ -76,5 +85,3 @@ final class KeychainStore {
         guard status == errSecSuccess else { throw KeychainStoreError.unexpectedStatus(status) }
     }
 }
-
-

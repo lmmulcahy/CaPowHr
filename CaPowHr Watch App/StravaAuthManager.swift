@@ -246,24 +246,57 @@ final class StravaAuthManager: NSObject, ObservableObject {
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw NSError(domain: "StravaAuth", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid JSON response"])
         }
-        
+
         guard let accessToken = json["access_token"] as? String,
               let refreshToken = json["refresh_token"] as? String,
               let expiresAt = json["expires_at"] as? Double else {
             throw NSError(domain: "StravaAuth", code: 2, userInfo: [NSLocalizedDescriptionKey: "Missing token fields"])
         }
-        
+
         try keychain.upsertString(accessToken, account: StravaConfig.accessTokenKey)
         try keychain.upsertString(refreshToken, account: StravaConfig.refreshTokenKey)
         try keychain.upsertString(String(expiresAt), account: StravaConfig.expiresAtKey)
-        
+
         // Store athlete info if available
         if let athlete = json["athlete"] as? [String: Any],
            let athleteId = athlete["id"] as? Int {
             try keychain.upsertString(String(athleteId), account: StravaConfig.athleteIdKey)
-            
+
             if let firstName = athlete["firstname"] as? String {
                 athleteName = firstName
+            }
+        }
+    }
+}
+
+// MARK: - WatchConnectivityDelegate
+
+extension StravaAuthManager: WatchConnectivityDelegate {
+    func watchConnectivityDidRequestStravaAuth() {}
+
+    func watchConnectivityDidReceiveTokens(
+        accessToken: String,
+        refreshToken: String,
+        expiresAt: Double,
+        athleteId: String?,
+        athleteName: String?
+    ) {
+        Task { @MainActor in
+            do {
+                let keychain = KeychainStore(service: StravaConfig.keychainService)
+                try keychain.upsertString(accessToken, account: StravaConfig.accessTokenKey)
+                try keychain.upsertString(refreshToken, account: StravaConfig.refreshTokenKey)
+                try keychain.upsertString(String(expiresAt), account: StravaConfig.expiresAtKey)
+                if let athleteId {
+                    try keychain.upsertString(athleteId, account: StravaConfig.athleteIdKey)
+                }
+                if let athleteName {
+                    self.athleteName = athleteName
+                }
+                isAuthenticated = true
+                authError = nil
+            } catch {
+                authError = error.localizedDescription
             }
         }
     }
