@@ -18,13 +18,15 @@ struct ScannedDevice: Identifiable, Hashable {
 
 enum HeartRateSource: String, CaseIterable {
     case auto = "auto"
+    /// Prefer HR reported by the connected equipment (bike, treadmill, or rower).
+    /// The raw value stays "bike" for backwards compatibility with stored settings.
     case bike = "bike"
     case watch = "watch"
-    
+
     var displayName: String {
         switch self {
         case .auto: return "Auto (default)"
-        case .bike: return "Bike"
+        case .bike: return "Equipment"
         case .watch: return "Apple Watch"
         }
     }
