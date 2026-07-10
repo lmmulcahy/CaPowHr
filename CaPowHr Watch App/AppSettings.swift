@@ -50,6 +50,7 @@ enum AppSettings {
     static let maxHeartRateKey = "maxHeartRate"
     static let ftpKey = "ftp"
     static let structuredWorkoutTemplateKey = "structuredWorkoutTemplate"
+    static let fitExportEnabledKey = "fitExportEnabled"
 
     static var distanceUnit: DistanceUnit {
         get {
