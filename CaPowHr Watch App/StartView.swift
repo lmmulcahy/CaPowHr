@@ -87,23 +87,11 @@ struct StartView: View {
     @ViewBuilder
     private var startButtons: some View {
         if workoutManager.connectedDevices.isEmpty {
-            VStack(spacing: 6) {
-                Button(AppSettings.lastWorkoutType.startButtonTitle) {
-                    workoutManager.startWorkout(type: AppSettings.lastWorkoutType, connectIfNeeded: true)
-                }
+            Button("Start") {}
                 .font(.headline)
                 .fontWeight(.bold)
-                .foregroundColor(.green)
-
-                HStack(spacing: 6) {
-                    compactStartButton("Ride", type: .indoorCycle)
-                    compactStartButton("Run", type: .indoorRun)
-                }
-                HStack(spacing: 6) {
-                    compactStartButton("Walk", type: .indoorWalk)
-                    compactStartButton("Row", type: .indoorRow)
-                }
-            }
+                .foregroundColor(.gray)
+                .disabled(true)
         } else {
             switch workoutManager.detectedDeviceType {
             case .treadmill:
@@ -125,14 +113,6 @@ struct StartView: View {
         }
         .font(.headline)
         .fontWeight(.bold)
-        .foregroundColor(.green)
-    }
-
-    private func compactStartButton(_ title: String, type: WorkoutType) -> some View {
-        Button(title) {
-            workoutManager.startWorkout(type: type, connectIfNeeded: true)
-        }
-        .font(.caption)
         .foregroundColor(.green)
     }
 }
