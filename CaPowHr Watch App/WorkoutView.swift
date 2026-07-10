@@ -8,7 +8,7 @@ struct WorkoutView: View {
     
     var body: some View {
         VStack(spacing: 2) {
-            Text(formatDuration(workoutManager.workoutDuration))
+            Text(DurationFormatter.hoursMinutesSeconds(workoutManager.workoutDuration))
                 .font(.title2)
                 .fontWeight(.semibold)
                 .foregroundColor(workoutManager.isWorkoutPaused ? .yellow : .primary)
@@ -57,14 +57,6 @@ struct WorkoutView: View {
         }
     }
     
-    private func formatDuration(_ duration: TimeInterval) -> String {
-        let hours = Int(duration) / 3600
-        let minutes = Int(duration) % 3600 / 60
-        let seconds = Int(duration) % 60
-        if hours > 0 { return String(format: "%d:%02d:%02d", hours, minutes, seconds) }
-        return String(format: "%d:%02d", minutes, seconds)
-    }
-
     private var heartRateValue: String {
         workoutManager.heartRate > 0 ? "\(Int(workoutManager.heartRate))" : "-"
     }

@@ -17,7 +17,7 @@ struct WorkoutControlsView: View {
             }
 
             if let phase = workoutManager.structuredWorkout.currentPhase {
-                Text("\(phase.name) · \(formatDuration(workoutManager.structuredWorkout.currentPhaseRemainingSeconds))")
+                Text("\(phase.name) · \(DurationFormatter.minutesSeconds(workoutManager.structuredWorkout.currentPhaseRemainingSeconds))")
                     .font(.caption2)
                     .foregroundColor(.orange)
             }
@@ -53,11 +53,6 @@ struct WorkoutControlsView: View {
         }
     }
 
-    private func formatDuration(_ duration: TimeInterval) -> String {
-        let minutes = Int(duration) / 60
-        let seconds = Int(duration) % 60
-        return String(format: "%d:%02d", minutes, seconds)
-    }
 }
 
 struct WorkoutSummaryView: View {
@@ -75,7 +70,7 @@ struct WorkoutSummaryView: View {
                     .font(.headline)
                     .fontWeight(.bold)
 
-                summaryRow("Duration", formatDuration(summary.durationSeconds))
+                summaryRow("Duration", DurationFormatter.hoursMinutesSeconds(summary.durationSeconds))
                 summaryRow("Distance", formattedDistance)
                 if let hr = summary.averageHeartRate, hr > 0 {
                     summaryRow("Avg HR", "\(Int(hr)) bpm")
@@ -142,14 +137,6 @@ struct WorkoutSummaryView: View {
                 .font(.caption)
                 .fontWeight(.semibold)
         }
-    }
-
-    private func formatDuration(_ duration: TimeInterval) -> String {
-        let hours = Int(duration) / 3600
-        let minutes = Int(duration) % 3600 / 60
-        let seconds = Int(duration) % 60
-        if hours > 0 { return String(format: "%d:%02d:%02d", hours, minutes, seconds) }
-        return String(format: "%d:%02d", minutes, seconds)
     }
 
     private func exportFIT() {
