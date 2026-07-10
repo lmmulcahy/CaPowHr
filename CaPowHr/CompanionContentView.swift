@@ -20,13 +20,6 @@ struct CompanionContentView: View {
                         .multilineTextAlignment(.center)
 
                     stravaSection
-
-                    NavigationLink {
-                        CompatibilityListViewiOS()
-                    } label: {
-                        Label("Equipment Compatibility", systemImage: "checklist")
-                    }
-                    .buttonStyle(.bordered)
                 }
                 .padding()
             }
@@ -74,24 +67,6 @@ struct CompanionContentView: View {
         .padding()
         .background(Color(.secondarySystemBackground))
         .cornerRadius(12)
-    }
-}
-
-struct CompatibilityListViewiOS: View {
-    var body: some View {
-        List {
-            Section {
-                Text("Use CaPowHr on Apple Watch to connect BLE gym equipment. Successful connections and workouts build your personal tested-equipment list on-watch.")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-            }
-            Section("Supported Profiles") {
-                Label("FTMS indoor bikes, treadmills, rowers", systemImage: "dot.radiowaves.left.and.right")
-                Label("Cycling power (0x1818)", systemImage: "bolt.fill")
-                Label("Speed & cadence (0x1816)", systemImage: "speedometer")
-            }
-        }
-        .navigationTitle("Compatibility")
     }
 }
 

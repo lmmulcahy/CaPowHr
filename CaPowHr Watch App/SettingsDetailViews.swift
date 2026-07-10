@@ -37,30 +37,6 @@ struct TrustedDevicesSettingsView: View {
     }
 }
 
-struct CompatibilityListView: View {
-    @State private var records = CompatibilityStore.loadAll()
-
-    var body: some View {
-        List {
-            if records.isEmpty {
-                Text("Connect equipment to build your compatibility list.")
-                    .foregroundColor(.secondary)
-            } else {
-                ForEach(records) { record in
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(record.deviceName)
-                        Text("\(record.deviceType.rawValue.capitalized) · \(record.successfulWorkoutCount) workouts")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
-        }
-        .navigationTitle("Tested Equipment")
-        .onAppear { records = CompatibilityStore.loadAll() }
-    }
-}
-
 struct MetricsLayoutSettingsView: View {
     @State private var bikeMetrics = WorkoutMetricsLayout.bikeMetrics()
     @State private var treadmillMetrics = WorkoutMetricsLayout.treadmillMetrics()

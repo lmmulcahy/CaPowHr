@@ -400,13 +400,6 @@ class WorkoutManager: NSObject, ObservableObject {
     }
     
     private func finishWorkout() {
-        if let summary = workoutSummary,
-           let deviceName = connectedDevices.first {
-            CompatibilityStore.recordSuccessfulWorkout(
-                name: deviceName,
-                deviceType: detectedDeviceType
-            )
-        }
         hkManager.finishWorkout { [weak self] success, _ in
             if success { print("Workout saved successfully") }
             DispatchQueue.main.async {
@@ -684,7 +677,6 @@ extension WorkoutManager: BluetoothManagerDelegate {
     func btDidConnectDevice(id: UUID, name: String, deviceType: FitnessDeviceType) {
         DispatchQueue.main.async {
             TrustedDeviceStore.remember(id: id, name: name, deviceType: deviceType)
-            CompatibilityStore.recordSuccessfulConnection(name: name, deviceType: deviceType)
             if self.detectedDeviceType == .unknown, deviceType != .unknown {
                 self.detectedDeviceType = deviceType
             }

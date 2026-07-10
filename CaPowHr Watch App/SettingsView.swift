@@ -62,13 +62,6 @@ struct SettingsView: View {
                         .font(.footnote)
                 }
 
-                NavigationLink {
-                    CompatibilityListView()
-                } label: {
-                    Label("Tested Equipment", systemImage: "checklist")
-                        .font(.footnote)
-                }
-                
                 if FeatureFlags.showBLELogUpload {
                     NavigationLink {
                         BLELogCaptureView(workoutManager: workoutManager)
