@@ -19,6 +19,14 @@ struct CSCDistanceEstimator {
         lastWheelTime = nil
     }
 
+    /// Clears wheel history while keeping the calibrated circumference.
+    /// Call on workout resume so revolutions that happened during a pause
+    /// aren't converted into a distance jump on the first new sample.
+    mutating func rebaseline() {
+        lastWheelRev = nil
+        lastWheelTime = nil
+    }
+
     /// Update from a CSC wheel sample.
     ///
     /// - Parameters:

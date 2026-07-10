@@ -260,6 +260,14 @@ class WorkoutManager: NSObject, ObservableObject {
         if !isDisplayOnlyMode {
             hkManager.resumeWorkout()
         }
+        // Re-baseline the accumulators so anything the machine counted during the
+        // pause (or a stale pre-pause timestamp) isn't booked as a burst on the
+        // first post-resume packet.
+        lastEnergyUpdateTime = Date()
+        lastFTMSTotalEnergyKcal = nil
+        lastDistanceUpdateTime = nil
+        distanceEstimator.reset()
+        cscDistanceEstimator.rebaseline()
     }
 
     func recordLap() {
@@ -471,7 +479,9 @@ class WorkoutManager: NSObject, ObservableObject {
                 prefersEquipmentHeartRate = true
                 DispatchQueue.main.async {
                     self.heartRate = bpm
-                    self.statsTracker.recordHeartRate(bpm)
+                    // HR samples keep flowing to HealthKit during a pause (the chart
+                    // should stay continuous) but shouldn't skew the workout average.
+                    if !self.isWorkoutPaused { self.statsTracker.recordHeartRate(bpm) }
                 }
                 hkManager.addHeartRateSample(bpm)
             case .watch:
@@ -498,15 +508,21 @@ class WorkoutManager: NSObject, ObservableObject {
     private func handleEquipmentEnergy(totalKcal: UInt16?) {
         guard let total = totalKcal else { return }
         let totalKcalValue = Double(total)
-        let now = Date()
         hasSeenFTMSEnergy = true
-        DispatchQueue.main.async { self.activeEnergyKcal = totalKcalValue }
 
+        // While paused, don't accrue energy; resumeWorkout() clears the baseline
+        // so the first post-resume packet re-baselines against the machine total.
+        guard !isWorkoutPaused else { return }
+
+        let now = Date()
         if let lastTotal = lastFTMSTotalEnergyKcal, let lastTime = lastEnergyUpdateTime {
             let delta = totalKcalValue - lastTotal
             // Guard against device reset/wrap or non-monotonic streams.
             if delta > 0 {
                 hkManager.addEnergyBurnedSample(delta, start: lastTime, end: now)
+                // Accumulate deltas rather than mirroring the machine's session
+                // total, so the displayed calories match what we record.
+                DispatchQueue.main.async { self.activeEnergyKcal += delta }
             }
         }
 
@@ -651,8 +667,11 @@ extension WorkoutManager: BluetoothManagerDelegate {
     func btDidUpdatePower(watts: Double) {
         DispatchQueue.main.async {
             self.cyclingPower = watts
-            self.statsTracker.recordPower(watts)
+            if !self.isWorkoutPaused { self.statsTracker.recordPower(watts) }
         }
+        // While paused, keep showing live values but don't record samples or
+        // accrue energy; resumeWorkout() re-baselines the accumulators.
+        guard !isWorkoutPaused else { return }
         hkManager.addPowerSample(watts)
 
         // Fallback energy estimation from mechanical power if the bike doesn't provide FTMS expended energy.
@@ -666,30 +685,36 @@ extension WorkoutManager: BluetoothManagerDelegate {
                 let kcal = joules / 4184.0
                 if kcal > 0 {
                     hkManager.addEnergyBurnedSample(kcal, start: last, end: now)
+                    DispatchQueue.main.async { self.activeEnergyKcal += kcal }
                 }
             }
         }
         lastEnergyUpdateTime = now
     }
-    
+
     func btDidUpdateCadence(rpm: Double) {
         DispatchQueue.main.async {
             self.cyclingCadence = rpm
-            self.statsTracker.recordCadence(rpm)
+            if !self.isWorkoutPaused { self.statsTracker.recordCadence(rpm) }
         }
+        guard !isWorkoutPaused else { return }
         hkManager.addCadenceSample(rpm)
     }
-    
+
     func btDidUpdateSpeed(mps: Double) {
         DispatchQueue.main.async { self.cyclingSpeedMps = mps }
+
+        // Cache latest speed for CSC circumference calibration.
+        lastSpeedForCSCCalibrationMps = mps
+
+        // While paused, show live speed but don't write samples or integrate distance.
+        guard !isWorkoutPaused else { return }
+
         if currentWorkoutType == .indoorRun {
             hkManager.addSpeedSample(mps, isRunning: true)
         } else if currentWorkoutType == .indoorWalk {
             hkManager.addSpeedSample(mps, isRunning: false)
         }
-
-        // Cache latest speed for CSC circumference calibration.
-        lastSpeedForCSCCalibrationMps = mps
 
         // If the bike provides cumulative distance, prefer that.
         guard !hasSeenFTMSTotalDistance else { return }
@@ -704,12 +729,17 @@ extension WorkoutManager: BluetoothManagerDelegate {
         DispatchQueue.main.async { self.distanceMeters += sample.deltaMeters }
         addDistanceSampleForCurrentWorkout(sample.deltaMeters, start: sample.start, end: sample.end)
     }
-    
+
     func btDidUpdateTotalDistance(meters: Double) {
         hasSeenFTMSTotalDistance = true
         distanceEstimator.reset()
         cscDistanceEstimator.reset()
-        DispatchQueue.main.async { self.distanceMeters = meters }
+
+        // While paused, ignore machine totals entirely; resumeWorkout() clears
+        // lastDistanceUpdateTime so the next packet re-baselines against the
+        // machine's cumulative counter and pause movement is excluded.
+        guard !isWorkoutPaused else { return }
+
         let now = Date()
         if let lastTime = lastDistanceUpdateTime {
             let delta = meters - lastDistanceMetersSaved
@@ -717,6 +747,9 @@ extension WorkoutManager: BluetoothManagerDelegate {
                 addDistanceSampleForCurrentWorkout(delta, start: lastTime, end: now)
                 let dt = now.timeIntervalSince(lastTime)
                 if dt > 0 { DispatchQueue.main.async { self.cyclingSpeedMps = delta / dt } }
+                // Accumulate deltas rather than mirroring the machine's session
+                // total, so the displayed distance matches what we record.
+                DispatchQueue.main.async { self.distanceMeters += delta }
                 lastDistanceMetersSaved = meters
                 lastDistanceUpdateTime = now
             }
@@ -739,6 +772,10 @@ extension WorkoutManager: BluetoothManagerDelegate {
         // Distance estimation from CSC wheel data (if present). Many bikes send crank-only; in that case we do nothing.
         guard !hasSeenFTMSTotalDistance else { return }
         guard let rev = wheelRev, let time = wheelTime else { return }
+
+        // While paused, don't accrue wheel distance; resumeWorkout() re-baselines
+        // the estimator so pause revolutions aren't counted.
+        guard !isWorkoutPaused else { return }
 
         // Mark CSC distance as our preferred non-FTMS-distance source and disable speed integration.
         hasSeenCSCDistance = true
@@ -814,7 +851,7 @@ extension WorkoutManager: HealthKitManagerDelegate {
             // In watch mode, always use watch HR
             DispatchQueue.main.async {
                 self.heartRate = bpm
-                self.statsTracker.recordHeartRate(bpm)
+                if !self.isWorkoutPaused { self.statsTracker.recordHeartRate(bpm) }
             }
             hkManager.addHeartRateSample(bpm)
         case .auto:
@@ -822,7 +859,7 @@ extension WorkoutManager: HealthKitManagerDelegate {
             if prefersEquipmentHeartRate { return }
             DispatchQueue.main.async {
                 self.heartRate = bpm
-                self.statsTracker.recordHeartRate(bpm)
+                if !self.isWorkoutPaused { self.statsTracker.recordHeartRate(bpm) }
             }
             hkManager.addHeartRateSample(bpm)
         }
