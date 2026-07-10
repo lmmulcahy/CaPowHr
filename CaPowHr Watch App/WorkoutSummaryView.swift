@@ -60,6 +60,7 @@ struct WorkoutSummaryView: View {
     @ObservedObject var stravaUploader: StravaUploader
     var onSave: () -> Void
     var onDiscard: () -> Void
+    @AppStorage(AppSettings.fitExportEnabledKey) private var fitExportEnabled: Bool = false
     @State private var fitExportURL: URL?
     @State private var exportError: String?
 
@@ -92,21 +93,23 @@ struct WorkoutSummaryView: View {
                         .multilineTextAlignment(.center)
                 }
 
-                if let exportError {
-                    Text(exportError)
-                        .font(.caption2)
-                        .foregroundColor(.red)
-                }
+                if fitExportEnabled {
+                    if let exportError {
+                        Text(exportError)
+                            .font(.caption2)
+                            .foregroundColor(.red)
+                    }
 
-                Button("Export FIT File") {
-                    exportFIT()
-                }
-                .font(.caption)
+                    Button("Export FIT File") {
+                        exportFIT()
+                    }
+                    .font(.caption)
 
-                if let fitExportURL {
-                    ShareLink(item: fitExportURL) {
-                        Text("Share FIT")
-                            .font(.caption)
+                    if let fitExportURL {
+                        ShareLink(item: fitExportURL) {
+                            Text("Share FIT")
+                                .font(.caption)
+                        }
                     }
                 }
 

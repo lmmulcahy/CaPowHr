@@ -7,6 +7,7 @@ struct SettingsView: View {
     @AppStorage("heartRateSource") private var heartRateSource: String = HeartRateSource.auto.rawValue
     @AppStorage(AppSettings.distanceUnitKey) private var distanceUnit: String = DistanceUnit.miles.rawValue
     @AppStorage(AppSettings.workoutSaveModeKey) private var workoutSaveMode: String = WorkoutSaveMode.askEveryTime.rawValue
+    @AppStorage(AppSettings.fitExportEnabledKey) private var fitExportEnabled: Bool = false
     
     private var heartRateSourceBinding: Binding<HeartRateSource> {
         Binding(
@@ -43,6 +44,9 @@ struct SettingsView: View {
                     }
                 }
                 .pickerStyle(.navigationLink)
+
+                Toggle("Export FIT File", isOn: $fitExportEnabled)
+                    .font(.footnote)
 
                 NavigationLink {
                     TrustedDevicesSettingsView(workoutManager: workoutManager)
