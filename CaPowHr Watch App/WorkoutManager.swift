@@ -469,7 +469,10 @@ class WorkoutManager: NSObject, ObservableObject {
             switch source {
             case .bike, .auto:
                 prefersEquipmentHeartRate = true
-                DispatchQueue.main.async { self.heartRate = bpm }
+                DispatchQueue.main.async {
+                    self.heartRate = bpm
+                    self.statsTracker.recordHeartRate(bpm)
+                }
                 hkManager.addHeartRateSample(bpm)
             case .watch:
                 prefersEquipmentHeartRate = false
