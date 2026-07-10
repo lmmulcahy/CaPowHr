@@ -619,7 +619,7 @@
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "CaPowHr uses Bluetooth to connect to cycling power meters and cadence sensors for accurate workout tracking.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "CaPowHr reads your heart rate during your ride so it can be displayed to you and saved in your workout.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "CaPowHr saves your cycling workouts, with heart rate, power, cadence, distance, and calories.";
-				INFOPLIST_KEY_UIBackgroundModes = "workout-processing";
+				INFOPLIST_KEY_WKBackgroundModes = "workout-processing";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKWatchOnly = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -663,7 +663,7 @@
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "CaPowHr uses Bluetooth to connect to cycling power meters and cadence sensors for accurate workout tracking.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Allow CaPowHr to read your heart rate for workouts.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Allow CaPowHr to save cycling workouts, power, cadence, distance, and calories.";
-				INFOPLIST_KEY_UIBackgroundModes = "workout-processing";
+				INFOPLIST_KEY_WKBackgroundModes = "workout-processing";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKWatchOnly = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
