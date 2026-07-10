@@ -72,14 +72,16 @@ struct SaveDiscardView: View {
     }
     
     private func saveWorkoutAndUploadToStrava() {
+        // Fallback when no summary exists: omit the averages rather than passing
+        // off the last instantaneous readings as workout averages.
         let uploadData = workoutManager.workoutSummary?.uploadData ?? WorkoutUploadData(
             workoutType: workoutManager.currentWorkoutType,
             startDate: Date().addingTimeInterval(-workoutManager.workoutDuration),
             durationSeconds: workoutManager.workoutDuration,
             distanceMeters: workoutManager.distanceMeters,
-            averageHeartRate: workoutManager.heartRate > 0 ? workoutManager.heartRate : nil,
-            averagePower: workoutManager.cyclingPower > 0 ? workoutManager.cyclingPower : nil,
-            averageCadence: workoutManager.cyclingCadence > 0 ? workoutManager.cyclingCadence : nil
+            averageHeartRate: nil,
+            averagePower: nil,
+            averageCadence: nil
         )
         
         workoutManager.confirmSaveWorkout()
