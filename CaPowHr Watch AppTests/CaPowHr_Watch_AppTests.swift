@@ -100,6 +100,45 @@ struct CaPowHr_Watch_AppTests {
         }
     }
 
+    @Test func ftmsIndoorBikeData_moreDataBitOmitsSpeed() async throws {
+        // "More Data" continuation packet (flags bit 0 = 1): instantaneous speed is NOT
+        // present; the first field after flags belongs to whatever optional bits are set.
+        // flags = 0x0045 (bit 0 more-data, bit 2 cadence, bit 6 power)
+        // cadence raw = 0x00A0 => 80 rpm, power = 0x00C8 => 200 W
+        let payload = dataFromHex("4500A000C800")
+        let parsed = CyclingSensorParser.parseIndoorBikeData(payload)
+
+        #expect(parsed.flags == 0x0045)
+        #expect(parsed.instantaneousSpeedKph == nil)
+        #expect(parsed.instantaneousCadenceRpm == 80)
+        #expect(parsed.instantaneousPowerWatts == 200)
+    }
+
+    @Test func ftmsIndoorBikeData_moreDataBitWithEnergyFields() async throws {
+        // flags = 0x0101 (bit 0 more-data, bit 8 expended energy)
+        // total = 150 kcal, per hour = 500 kcal, per minute = 8 kcal
+        let payload = dataFromHex("01019600F40108")
+        let parsed = CyclingSensorParser.parseIndoorBikeData(payload)
+
+        #expect(parsed.flags == 0x0101)
+        #expect(parsed.instantaneousSpeedKph == nil)
+        #expect(parsed.totalEnergyKcal == 150)
+        #expect(parsed.energyPerHourKcal == 500)
+        #expect(parsed.energyPerMinuteKcal == 8)
+    }
+
+    @Test func treadmillData_moreDataBitOmitsSpeed() async throws {
+        // flags = 0x0205 (bit 0 more-data, bit 2 total distance, bit 9 heart rate)
+        // total distance (UInt24) = 1500 m, HR = 140 bpm
+        let payload = dataFromHex("0502DC05008C")
+        let parsed = TreadmillSensorParser.parseTreadmillData(payload)
+
+        #expect(parsed.flags == 0x0205)
+        #expect(parsed.instantaneousSpeedKph == nil)
+        #expect(parsed.totalDistanceMeters == 1500)
+        #expect(parsed.heartRateBpm == 140)
+    }
+
     @Test func distanceEstimator_integratesSpeedOverTime() async throws {
         var est = DistanceEstimator()
         let t0 = Date(timeIntervalSince1970: 0)

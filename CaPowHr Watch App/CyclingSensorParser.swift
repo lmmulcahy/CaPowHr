@@ -126,13 +126,18 @@ enum CyclingSensorParser {
         guard let flags = reader.readUInt16LE() else { return out }
         out.flags = flags
 
-        // 2) INSTANTANEOUS SPEED (mandatory): UInt16, 0.01 km/h
-        guard let speedRaw = reader.readUInt16LE() else { return out }
-        out.instantaneousSpeedKph = Double(speedRaw) / 100.0
-
         // Helper: check bit index in flags
         func has(_ bitIndex: Int) -> Bool {
             (flags & (1 << bitIndex)) != 0
+        }
+
+        // 2) INSTANTANEOUS SPEED: UInt16, 0.01 km/h.
+        // Bit 0 is "More Data" with negated presence logic (FTMS v1.0 §4.9.1):
+        // speed is present only when bit 0 is 0. Machines that split a full update
+        // across several notifications set bit 0 on the continuation packets.
+        if !has(0) {
+            guard let speedRaw = reader.readUInt16LE() else { return out }
+            out.instantaneousSpeedKph = Double(speedRaw) / 100.0
         }
 
         // 3) OPTIONAL FIELDS in spec order, bits 1 through 12 (bit 0 ignored)
