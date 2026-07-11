@@ -57,7 +57,7 @@ struct CompanionContentView: View {
                 }
                 .buttonStyle(.bordered)
             } else {
-                Button("Connect to Strava") {
+                Button("Connect with Strava") {
                     authManager.authenticate()
                 }
                 .buttonStyle(.borderedProminent)
