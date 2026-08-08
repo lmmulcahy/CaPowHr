@@ -37,7 +37,7 @@ Use the optional iPhone companion to connect Strava when watch-only OAuth is inc
 ## Keywords
 indoor cycling,power meter,FTMS,treadmill,rower,Apple Watch,HealthKit,Strava,Bluetooth,cadence,trainer
 
-## What's New (2.3)
+## What's New (3.0)
 - Strava upload after your workout, with an optional iPhone companion app for easy sign-in
 - Trusted devices: auto-reconnect to your regular bike, treadmill, or rower
 - Post-workout summary with save or discard
@@ -45,4 +45,7 @@ indoor cycling,power meter,FTMS,treadmill,rower,Apple Watch,HealthKit,Strava,Blu
 - Miles or kilometers
 - Optional FIT file export
 - Watch complications to quick-start your last workout type
+- Recording now keeps running when you lower your wrist or open another app
+- Calories come from Apple's estimate unless your equipment measures its own
+- Confirmation before ending a workout, so a mis-tap no longer stops your ride
 - More accurate distance, energy, and heart-rate tracking, including correct handling of pauses
