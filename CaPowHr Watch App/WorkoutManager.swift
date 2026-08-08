@@ -94,10 +94,17 @@ class WorkoutManager: NSObject, ObservableObject {
     private var cscDistanceEstimator = CSCDistanceEstimator()
     private var hasSeenCSCDistance: Bool = false
     private var lastSpeedForCSCCalibrationMps: Double?
-    private var hasSeenFTMSEnergy: Bool = false
-    private var lastFTMSTotalEnergyKcal: Double?
+    private var energyOwnership = EnergyOwnership()
+    /// Latest running total Apple's data source has collected into the builder.
+    private var appleCollectedEnergyKcal: Double = 0
     private var prefersEquipmentHeartRate: Bool = false
     private var lastEquipmentHeartRateAt: Date?
+
+    /// Metabolic kcal per joule of mechanical work. Cycling gross efficiency is ~24%,
+    /// so 1 kJ at the pedals costs roughly 1 kcal (1 kJ / 0.24 = 4.18 kJ metabolic
+    /// = 1.0 kcal). Dividing raw joules by 4184 would report mechanical work only,
+    /// about 4x too low.
+    private static let joulesPerMetabolicKcal: Double = 1004.0
 
     // MARK: - Stale metric timeout
     /// Instantaneous metrics freeze at their last value when a sensor stops
@@ -218,8 +225,8 @@ class WorkoutManager: NSObject, ObservableObject {
 
     private func resetEnergyTracking() {
         lastEnergyUpdateTime = nil
-        lastFTMSTotalEnergyKcal = nil
-        hasSeenFTMSEnergy = false
+        energyOwnership.reset()
+        appleCollectedEnergyKcal = 0
     }
 
     private func resetHeartRateTracking() {
@@ -271,7 +278,7 @@ class WorkoutManager: NSObject, ObservableObject {
         // pause (or a stale pre-pause timestamp) isn't booked as a burst on the
         // first post-resume packet.
         lastEnergyUpdateTime = Date()
-        lastFTMSTotalEnergyKcal = nil
+        energyOwnership.rebaseline()
         lastDistanceUpdateTime = nil
         distanceEstimator.reset()
         cscDistanceEstimator.rebaseline()
@@ -533,30 +540,39 @@ class WorkoutManager: NSObject, ObservableObject {
         }
     }
 
-    /// Applies an FTMS Expended Energy total (kcal) from any machine type, writing the delta
-    /// to HealthKit. Marks FTMS energy as seen so the power-based fallback stops accumulating.
+    /// Applies an FTMS Expended Energy total (kcal) from any machine type.
+    ///
+    /// Apple's estimate owns `activeEnergyBurned` until this counter is seen to actually
+    /// increment; from that point the machine owns it and we write the deltas ourselves.
+    /// See `EnergyOwnership` for why presence of the field alone isn't enough.
     private func handleEquipmentEnergy(totalKcal: UInt16?) {
         guard let total = totalKcal else { return }
-        let totalKcalValue = Double(total)
-        hasSeenFTMSEnergy = true
 
-        // While paused, don't accrue energy; resumeWorkout() clears the baseline
-        // so the first post-resume packet re-baselines against the machine total.
+        // While paused, don't accrue energy; resumeWorkout() re-baselines so the first
+        // post-resume packet doesn't book the pause as a burst.
         guard !isWorkoutPaused else { return }
 
         let now = Date()
-        if let lastTotal = lastFTMSTotalEnergyKcal, let lastTime = lastEnergyUpdateTime {
-            let delta = totalKcalValue - lastTotal
-            // Guard against device reset/wrap or non-monotonic streams.
-            if delta > 0 {
-                hkManager.addEnergyBurnedSample(delta, start: lastTime, end: now)
-                // Accumulate deltas rather than mirroring the machine's session
-                // total, so the displayed calories match what we record.
-                DispatchQueue.main.async { self.activeEnergyKcal += delta }
+        switch energyOwnership.apply(machineTotalKcal: Double(total)) {
+        case .ignore:
+            break
+
+        case .takeOwnership:
+            hkManager.stopCollectingActiveEnergy()
+            // Continue the displayed total from what Apple already collected, so the
+            // number stays monotonic and matches what the saved workout will hold.
+            let collected = appleCollectedEnergyKcal
+            DispatchQueue.main.async { self.activeEnergyKcal = collected }
+
+        case .delta(let kcal):
+            if let lastTime = lastEnergyUpdateTime {
+                hkManager.addEnergyBurnedSample(kcal, start: lastTime, end: now)
+                // Accumulate deltas rather than mirroring the machine's session total,
+                // so the displayed calories match what we record.
+                DispatchQueue.main.async { self.activeEnergyKcal += kcal }
             }
         }
 
-        lastFTMSTotalEnergyKcal = totalKcalValue
         lastEnergyUpdateTime = now
     }
 }
@@ -704,17 +720,17 @@ extension WorkoutManager: BluetoothManagerDelegate {
         guard !isWorkoutPaused else { return }
         hkManager.addPowerSample(watts)
 
-        // Fallback energy estimation from mechanical power if the bike doesn't provide FTMS expended energy.
-        // We only use this until we see FTMS totalEnergyKcal at least once, to avoid double-counting.
-        guard !hasSeenFTMSEnergy else { return }
+        // Display-only mode has no HKWorkoutBuilder, so Apple's data source never runs and
+        // nothing else would populate the calories card. Estimate it from mechanical power.
+        // Never written to HealthKit — in a real workout Apple owns activeEnergyBurned
+        // unless the machine has taken over, and either way this would double-count.
+        guard isDisplayOnlyMode, energyOwnership.source == .appleEstimate else { return }
         let now = Date()
         if let last = lastEnergyUpdateTime {
             let dt = now.timeIntervalSince(last)
             if dt > 0 {
-                let joules = watts * dt
-                let kcal = joules / 4184.0
+                let kcal = (watts * dt) / Self.joulesPerMetabolicKcal
                 if kcal > 0 {
-                    hkManager.addEnergyBurnedSample(kcal, start: last, end: now)
                     DispatchQueue.main.async { self.activeEnergyKcal += kcal }
                 }
             }
@@ -908,6 +924,22 @@ extension WorkoutManager: HealthKitManagerDelegate {
             }
             hkManager.addHeartRateSample(bpm)
         }
+    }
+
+    func hkDidUpdateActiveEnergy(_ kcal: Double) {
+        // Track Apple's total even after the machine takes over, so the handover has a
+        // value to continue the display from.
+        appleCollectedEnergyKcal = kcal
+        guard energyOwnership.source == .appleEstimate else { return }
+        activeEnergyKcal = kcal
+    }
+
+    func hkWorkoutSessionDidFail(_ message: String) {
+        // The error alert lives on StartView, so a failure raised mid-workout surfaces
+        // when the rider returns to the start screen. Word it to read correctly then.
+        alertTitle = "Workout Interrupted"
+        lastErrorMessage = "The workout session stopped unexpectedly (\(message)). Recording may have ended early."
+        showingErrorAlert = true
     }
 }
 
