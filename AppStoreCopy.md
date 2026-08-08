@@ -21,8 +21,8 @@ Connect FTMS smart bikes, treadmills, and rowers — plus cycling power meters a
 - Multi-strategy distance tracking when equipment data varies
 - Optional Strava upload after each workout
 - Trusted device reconnect for daily training
-- Pause, lap splits, training zones, and structured workout templates
-- FIT export for power users
+- Pause, lap splits, and a post-workout summary
+- Optional FIT export for power users
 - Watch complications for quick starts
 
 **Built for indoor athletes**
@@ -38,12 +38,11 @@ Use the optional iPhone companion to connect Strava when watch-only OAuth is inc
 indoor cycling,power meter,FTMS,treadmill,rower,Apple Watch,HealthKit,Strava,Bluetooth,cadence,trainer
 
 ## What's New (2.3)
-- Strava integration and iPhone companion for OAuth
-- Start workouts without pre-connecting sensors
-- Trusted device auto-reconnect
-- Miles/kilometers setting
-- Pause/resume, lap splits, and post-workout summary
-- Customizable workout screens and training zones
-- Structured workout templates
-- FIT export and equipment compatibility tracking
-- Watch complications
+- Strava upload after your workout, with an optional iPhone companion app for easy sign-in
+- Trusted devices: auto-reconnect to your regular bike, treadmill, or rower
+- Post-workout summary with save or discard
+- Customizable metric layouts for each equipment type
+- Miles or kilometers
+- Optional FIT file export
+- Watch complications to quick-start your last workout type
+- More accurate distance, energy, and heart-rate tracking, including correct handling of pauses
