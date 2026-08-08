@@ -4,6 +4,11 @@ struct WorkoutControlsView: View {
     @ObservedObject var workoutManager: WorkoutManager
     var onStop: () -> Void
 
+    /// Stop ends the HKWorkoutSession, which cannot be resumed, so a mis-tap on a
+    /// small screen loses the ride. Confirm first. Recording continues while the
+    /// dialog is up, so cancelling costs nothing.
+    @State private var isConfirmingStop = false
+
     var body: some View {
         VStack(spacing: 6) {
             if workoutManager.isConnectingDuringWorkout {
@@ -34,7 +39,7 @@ struct WorkoutControlsView: View {
                 .foregroundColor(.blue)
 
                 Button("Stop") {
-                    onStop()
+                    isConfirmingStop = true
                 }
                 .font(.caption)
                 .fontWeight(.bold)
@@ -44,6 +49,15 @@ struct WorkoutControlsView: View {
                 .background(Color.red)
                 .cornerRadius(8)
             }
+        }
+        // An alert rather than a confirmationDialog: on watchOS a dialog's .cancel
+        // button is swallowed by the sheet's own Close affordance, leaving "End
+        // Workout" as the only labelled choice - the opposite of what this is for.
+        .alert("End Workout?", isPresented: $isConfirmingStop) {
+            Button("Keep Going", role: .cancel) {}
+            Button("End Workout", role: .destructive) { onStop() }
+        } message: {
+            Text("Recording will stop and cannot be resumed.")
         }
     }
 
