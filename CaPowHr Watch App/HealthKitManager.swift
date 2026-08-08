@@ -3,6 +3,12 @@ import HealthKit
 
 protocol HealthKitManagerDelegate: AnyObject {
     func hkDidUpdateHeartRate(_ bpm: Double)
+    /// Running total of the active energy Apple's data source has collected into
+    /// the builder, in kcal. Only fires while `activeEnergyBurned` collection is
+    /// still enabled.
+    func hkDidUpdateActiveEnergy(_ kcal: Double)
+    /// The workout session failed or ended without the app asking it to.
+    func hkWorkoutSessionDidFail(_ message: String)
 }
 
 final class HealthKitManager: NSObject {
@@ -11,6 +17,9 @@ final class HealthKitManager: NSObject {
     private let healthStore = HKHealthStore()
     private var workoutSession: HKWorkoutSession?
     private var workoutBuilder: HKWorkoutBuilder?
+    /// Retained so `activeEnergyBurned` collection can be turned off mid-session
+    /// if the machine turns out to report its own energy.
+    private var liveDataSource: HKLiveWorkoutDataSource?
     private var heartRateQuery: HKAnchoredObjectQuery?
 
     // MARK: - Write throttling (avoid spamming HealthKit at BLE notification rate)
@@ -90,19 +99,27 @@ final class HealthKitManager: NSObject {
             self.workoutBuilder = builder
             // Assign a live data source to ensure metrics stream correctly on all watchOS versions
             let dataSource = HKLiveWorkoutDataSource(healthStore: healthStore, workoutConfiguration: configuration)
-            // CaPowHr writes its own heart-rate, energy, and distance samples (equipment
-            // data, honoring the user's HR-source preference). Disable automatic collection
-            // of those types so the watch's own estimates don't sum with ours in the
-            // workout totals (double-counted calories/distance, duplicated HR).
+            // CaPowHr writes its own heart-rate and distance samples (equipment data,
+            // honoring the user's HR-source preference). Disable automatic collection of
+            // those types so the watch's own estimates don't sum with ours in the workout
+            // totals (double-counted distance, duplicated HR).
+            //
+            // activeEnergyBurned is deliberately NOT in this list: Apple's estimate is
+            // heart-rate informed and is what the Move ring shows live, so it owns energy
+            // by default. Only a machine that demonstrably measures its own energy takes
+            // over, via stopCollectingActiveEnergy().
             let selfWrittenTypes: [HKQuantityTypeIdentifier] = [
-                .heartRate, .activeEnergyBurned, .distanceCycling, .distanceWalkingRunning
+                .heartRate, .distanceCycling, .distanceWalkingRunning
             ]
             for identifier in selfWrittenTypes {
                 if let type = HKQuantityType.quantityType(forIdentifier: identifier) {
                     dataSource.disableCollection(for: type)
                 }
             }
+            self.liveDataSource = dataSource
             builder.dataSource = dataSource
+            builder.delegate = self
+            session.delegate = self
             session.startActivity(with: Date())
             builder.beginCollection(withStart: Date()) { success, error in
                 completion(success, error)
@@ -110,6 +127,14 @@ final class HealthKitManager: NSObject {
         } catch {
             completion(false, error)
         }
+    }
+
+    /// Hand ownership of `activeEnergyBurned` to the caller, which will write the
+    /// machine's own energy from here on. Energy Apple already collected stays in
+    /// the builder; the caller must not re-book that interval.
+    func stopCollectingActiveEnergy() {
+        guard let type = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned) else { return }
+        liveDataSource?.disableCollection(for: type)
     }
 
     func endWorkoutCollection(completion: @escaping (Bool, Error?) -> Void) {
@@ -137,6 +162,7 @@ final class HealthKitManager: NSObject {
             }
             self.workoutBuilder = nil
             self.workoutSession = nil
+            self.liveDataSource = nil
         }
     }
 
@@ -144,6 +170,7 @@ final class HealthKitManager: NSObject {
         workoutBuilder?.discardWorkout()
         workoutBuilder = nil
         workoutSession = nil
+        liveDataSource = nil
     }
 
     // MARK: - Heart Rate
@@ -250,6 +277,42 @@ final class HealthKitManager: NSObject {
         let sample = HKQuantitySample(type: type, quantity: quantity, start: now, end: now)
         workoutBuilder?.add([sample]) { _, error in
             if let error = error { print("Error adding speed sample: \(error.localizedDescription)") }
+        }
+    }
+}
+
+// MARK: - HKLiveWorkoutBuilderDelegate
+extension HealthKitManager: HKLiveWorkoutBuilderDelegate {
+    func workoutBuilder(_ workoutBuilder: HKLiveWorkoutBuilder, didCollectDataOf collectedTypes: Set<HKSampleType>) {
+        guard let energyType = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned),
+              collectedTypes.contains(energyType),
+              let sum = workoutBuilder.statistics(for: energyType)?.sumQuantity()
+        else { return }
+
+        let kcal = sum.doubleValue(for: HKUnit.kilocalorie())
+        DispatchQueue.main.async { self.delegate?.hkDidUpdateActiveEnergy(kcal) }
+    }
+
+    func workoutBuilderDidCollectEvent(_ workoutBuilder: HKLiveWorkoutBuilder) {
+        // Pause/resume/lap markers are driven from WorkoutManager; nothing to do here.
+    }
+}
+
+// MARK: - HKWorkoutSessionDelegate
+extension HealthKitManager: HKWorkoutSessionDelegate {
+    func workoutSession(
+        _ workoutSession: HKWorkoutSession,
+        didChangeTo toState: HKWorkoutSessionState,
+        from fromState: HKWorkoutSessionState,
+        date: Date
+    ) {
+        print("Workout session state: \(fromState.rawValue) -> \(toState.rawValue)")
+    }
+
+    func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
+        print("Workout session failed: \(error.localizedDescription)")
+        DispatchQueue.main.async {
+            self.delegate?.hkWorkoutSessionDidFail(error.localizedDescription)
         }
     }
 }

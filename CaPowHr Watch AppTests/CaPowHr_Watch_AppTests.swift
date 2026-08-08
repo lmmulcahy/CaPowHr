@@ -336,5 +336,77 @@ struct CaPowHr_Watch_AppTests {
         #expect(parsed.instantaneousPowerWatts == 150)
     }
 
+    // MARK: - EnergyOwnership
+
+    @Test func energyOwnership_staysOnAppleEstimateWhileMachineReportsFlatZero() async throws {
+        // Grupetto-style bridge: the Expended Energy field is present but padded with
+        // zeros. Taking ownership here would save a zero-calorie workout.
+        var energy = EnergyOwnership()
+
+        #expect(energy.apply(machineTotalKcal: 0) == .ignore)
+        for _ in 0..<20 {
+            #expect(energy.apply(machineTotalKcal: 0) == .ignore)
+        }
+        #expect(energy.source == .appleEstimate)
+    }
+
+    @Test func energyOwnership_takesOwnershipOnFirstIncrementWithoutBookingIt() async throws {
+        var energy = EnergyOwnership()
+
+        // First total is only a baseline.
+        #expect(energy.apply(machineTotalKcal: 0) == .ignore)
+        #expect(energy.source == .appleEstimate)
+
+        // First genuine increment hands over. The increment itself is discarded because
+        // Apple's estimate already covered that interval.
+        #expect(energy.apply(machineTotalKcal: 1) == .takeOwnership)
+        #expect(energy.source == .machineReported)
+
+        // Everything after that is booked.
+        #expect(energy.apply(machineTotalKcal: 3) == .delta(kcal: 2))
+        #expect(energy.apply(machineTotalKcal: 4) == .delta(kcal: 1))
+    }
+
+    @Test func energyOwnership_ignoresStalledAndResetCounters() async throws {
+        var energy = EnergyOwnership()
+        #expect(energy.apply(machineTotalKcal: 10) == .ignore)
+        #expect(energy.apply(machineTotalKcal: 11) == .takeOwnership)
+        #expect(energy.apply(machineTotalKcal: 20) == .delta(kcal: 9))
+
+        // A stalled frame books nothing.
+        #expect(energy.apply(machineTotalKcal: 20) == .ignore)
+
+        // A device counter reset re-baselines instead of blocking all future samples.
+        #expect(energy.apply(machineTotalKcal: 2) == .ignore)
+        #expect(energy.apply(machineTotalKcal: 5) == .delta(kcal: 3))
+    }
+
+    @Test func energyOwnership_rebaselineSkipsEnergyAccruedWhilePaused() async throws {
+        var energy = EnergyOwnership()
+        #expect(energy.apply(machineTotalKcal: 0) == .ignore)
+        #expect(energy.apply(machineTotalKcal: 1) == .takeOwnership)
+        #expect(energy.apply(machineTotalKcal: 10) == .delta(kcal: 9))
+
+        // Pause: the machine keeps counting to 50. On resume we re-baseline, so that
+        // 40 kcal is not booked as a burst on the first post-resume packet.
+        energy.rebaseline()
+        #expect(energy.apply(machineTotalKcal: 50) == .ignore)
+        #expect(energy.source == .machineReported)
+        #expect(energy.apply(machineTotalKcal: 52) == .delta(kcal: 2))
+    }
+
+    @Test func energyOwnership_resetReturnsToAppleEstimate() async throws {
+        var energy = EnergyOwnership()
+        #expect(energy.apply(machineTotalKcal: 0) == .ignore)
+        #expect(energy.apply(machineTotalKcal: 1) == .takeOwnership)
+        #expect(energy.source == .machineReported)
+
+        energy.reset()
+        #expect(energy.source == .appleEstimate)
+        // Baseline is gone, so the next workout starts over.
+        #expect(energy.apply(machineTotalKcal: 99) == .ignore)
+        #expect(energy.source == .appleEstimate)
+    }
+
 }
 
