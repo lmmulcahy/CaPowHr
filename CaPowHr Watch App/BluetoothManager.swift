@@ -347,10 +347,31 @@ extension BluetoothManager: CBCentralManagerDelegate {
         resetCSCState()
         delegate?.btDidDisconnect(name: name, error: error)
         delegate?.btDidUpdateConnectedDevices(connectedPeripherals.map { cachedDisplayName(for: $0) })
-        // Resume scanning to allow reconnection only if allowed
-        if allowAutoReconnect {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in self?.startScanning() }
-        }
+
+        // Re-issue the connection rather than falling back to a scan.
+        //
+        // A scan cannot recover a mid-workout drop: didDiscover deliberately does not
+        // auto-connect, it only feeds the device picker, and that picker is not on
+        // screen during a workout. A device log of a real ride showed the bike drop at
+        // 2:54, the scan restart find 11 peripherals, and the app then record nothing
+        // for the remaining 1:49 of the ride.
+        //
+        // A pending connect needs no scan (which watchOS throttles hard in the
+        // background anyway) and CoreBluetooth holds the request indefinitely,
+        // reconnecting the moment the machine comes back.
+        guard allowAutoReconnect else { return }
+        beginPendingReconnect(to: peripheral)
+    }
+
+    /// Ask CoreBluetooth to reconnect as soon as `peripheral` is reachable again.
+    /// The request stays pending until it succeeds or `disconnectAll()` cancels it.
+    private func beginPendingReconnect(to peripheral: CBPeripheral) {
+        guard !connectedPeripherals.contains(peripheral),
+              !connectingPeripherals.contains(peripheral) else { return }
+        connectingPeripherals.append(peripheral)
+        discoveredPeripheralsDict[peripheral.identifier] = peripheral
+        print("Awaiting reconnect to \(cachedDisplayName(for: peripheral))...")
+        centralManager.connect(peripheral, options: nil)
     }
 }
 
