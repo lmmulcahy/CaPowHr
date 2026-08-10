@@ -1,35 +1,40 @@
 # CaPowHr
-**Last Updated:** 2026-08-08
+**Last Updated:** 2026-08-09
 **Status:** active
 
 ### 🎯 Current Phase
-Split into two release trains. `main` becomes **3.0** — the multi-modality feature release (Strava, iPhone companion, complications, trusted devices, metric layouts, FIT export) plus this summer's bug fixes. Separately, **2.2.1** is a minimal hotfix cut from the 2.2 baseline so the background-recording bug reaches users without waiting on 3.0 review.
+Two release trains. `main` is **3.0** (multi-modality features plus this summer's fixes); **2.2.1** is a minimal hotfix cut from the 2.2 baseline. Both are held pending one more hardware ride, because on-device logging overturned the original diagnosis of the field reports.
 
 ### ✅ Just Completed
-- [x] Traced three field reports — public #22 (calories far too low), #26 (distance ~60% of console), #27 (workout auto-stops mid-ride) — to one root cause: the watch target set `INFOPLIST_KEY_UIBackgroundModes`, an iOS key Xcode ignores for watchOS, so the built Info.plist declared no background modes and watchOS suspended the app whenever it was not frontmost
-- [x] Hybrid energy ownership (PR #6): Apple's HR-informed estimate owns `activeEnergyBurned` unless the machine's FTMS Expended Energy counter demonstrably increments. New `EnergyOwnership` type, unit tested
-- [x] Confirmation before ending a workout (PR #7) — Stop ends the `HKWorkoutSession` irreversibly, so a mis-tap lost the ride
-- [x] App Store metadata and compliance prep merged (PR #5)
-- [x] `release/2.2.1` branch cut from 2.2: WKBackgroundModes fix, FTMS More Data parser fix, privacy manifest, export compliance, version 2.2.1 build 1. Verified in the built product; 18 tests pass
-- [x] Relabelled `main` from 2.3 to 3.0 and updated the What's New copy
+- [x] Instrumented a device build (whole-ride BLE logging plus a 1 Hz heartbeat) and rode it. The log settled what three field reports could not.
+- [x] **The real defect: the app never reconnects after a mid-workout drop.** Steady ~4 Hz packets for 174s, bike disconnects at 2:54, then nothing for the remaining 1:49. On disconnect the manager only restarted a scan, and `didDiscover` deliberately does not auto-connect — it feeds a device picker that is not on screen during a workout. Fixed in PR #10 by re-issuing a pending `connect()`.
+- [x] 174 of 283 seconds carried data — 62% of the ride, closely matching the ~60% distance shortfall reported in public #26
+- [x] Confirmed the app is **not** suspended during workouts: 283 heartbeats across a 283-second session, no gaps. The earlier suspension diagnosis was wrong.
+- [x] `bluetooth-central` in `UIBackgroundModes` (PR #9) — `workout-processing` keeps the app running, this keeps Core Bluetooth delivering while backgrounded
+- [x] Both fixes cherry-picked onto `release/2.2.1`; suite green on both trains
+- [x] Earlier: hybrid energy ownership (PR #6), stop confirmation (PR #7), 3.0 relabel (PR #8)
 
 ### 🚀 Next Steps
-- [ ] Review and merge the 3.0 relabel PR
-- [ ] Submit **2.2.1** to App Store review first — it is the urgent one
-- [ ] Hardware validation before submitting either: recording continues wrist-down and through a notification; a machine reporting Expended Energy hands over to machine-owned energy; Grupetto stays on Apple's estimate and the Move ring does not drop on save
-- [ ] Submit 3.0 once 2.2.1 is out and the hardware checks pass
-- [ ] App Store Connect by hand for 3.0: App Privacy questionnaire (Strava data sharing), fresh screenshots, review notes on 4.8
-- [ ] Reply to reporters on public #22, #26, #27 and the Grupetto/OpenPelo report
+- [ ] Review and merge PR #9 and PR #10
+- [ ] **Verification ride on the instrumented build**: confirm the log shows a `connect` after a `disconnect`, and `rx` resuming. That is the one thing still unproven.
+- [ ] Submit **2.2.1** once the reconnect is confirmed on hardware
+- [ ] Submit 3.0 after, with the App Store Connect work (privacy questionnaire, screenshots, review notes)
+- [ ] Reply to reporters on public #22, #26, #27 and the Grupetto/OpenPelo report — the cause is not what the earlier analysis said
 
 ### 📋 Backlog / Later
-- [ ] No git tags exist. Tag the 2.2 baseline (`5b58569`) and each release going forward — this hotfix had to be cut from a bare SHA
-- [ ] Investigate BLE Log Capture upload — it creates a GitHub issue with a PAT baked in at build time via `Config/Secrets.xcconfig`. Auto-created log issues stop dead at 2026-01-30 and a recent reporter could not get the feature to work, so the token has likely expired
-- [ ] Reconsider `DistanceEstimator` discarding any interval longer than 5s — one-directional under-count, which the background bug used to trigger constantly
-- [ ] Stop re-writing Apple's own HR samples into the builder in Apple-Watch HR mode (redundant and lossy)
-- [ ] Wait for the session to reach `.ended` before calling `endCollection` — can truncate trailing data
-- [ ] Surface a mid-workout session failure in the active-workout UI; the error alert currently lives only on StartView
+- [ ] Delete throwaway branch `diag/2.2.1-ble-trace` once verification is done — it carries diagnostic logging that must never ship
+- [ ] Whole-ride BLE logging behind a user-facing debug toggle. It was decisive here, and the existing 20-second capture could never have found this.
+- [ ] No git tags exist. Tag the 2.2 baseline (`5b58569`) and each release going forward.
+- [ ] `didFailToConnect` still falls back to scanning, so a failed *reconnect* abandons the retry. Rare with a pending connect, but a real edge.
+- [ ] Investigate BLE Log Capture upload — PAT baked in at build time via `Config/Secrets.xcconfig`; auto-created log issues stop dead at 2026-01-30
+- [ ] Reconsider `DistanceEstimator` discarding intervals longer than 5s
+- [ ] Stop re-writing Apple HR samples into the builder in Apple-Watch HR mode
+- [ ] Wait for the session to reach `.ended` before calling `endCollection`
+- [ ] Surface a mid-workout session failure in the active-workout UI
 - [ ] Stop button label wraps to "Sto p" on the 46mm face
 
 ### 🛑 Blockers & Known Issues
-- Simulator coverage is limited: there is no BLE, and the start button is gated on a connected sensor, so driving the workout screens requires temporarily lifting that gate locally. The FTMS paths and the background-execution fix can only be confirmed on real hardware with a real machine.
-- `release/2.2.1` must never be merged into `main` — it is a release branch off the 2.2 baseline, and merging it would drag `main` back to 2.2-era code. Its two fix commits were cherry-picked *from* `main` and are already there.
+- The reconnect fix is **unverified on hardware**. It cannot be unit tested — `BluetoothManager` needs live Core Bluetooth, and the suite only covers pure helpers.
+- Device connectivity for `devicectl` is flaky. The watch drops from `connected` to `available (paired)` whenever it sleeps or leaves range, and installs only succeed while `connected`.
+- The simulator cannot exercise any of this: no BLE, and the start button is gated on a connected sensor.
+- `release/2.2.1` must never be merged into `main` — it is a release branch off the 2.2 baseline. Its commits were cherry-picked *from* `main`.
