@@ -1,6 +1,6 @@
 # Local secrets (do not commit)
-Secrets.xcconfig
-Config/Secrets.xcconfig
+*.local.xcconfig
+Config/*.local.xcconfig
 
 # Xcode
 #

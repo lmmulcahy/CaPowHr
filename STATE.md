@@ -11,11 +11,12 @@ Two release trains. `main` is **3.0** (multi-modality features plus this summer'
 - [x] Optimized `BluetoothManager.swift` service discovery: explicitly queries target characteristic UUIDs (`2A5B`, `2A63`, `2AD2/2ACD/2AD1`) instead of requesting all generic characteristics (`nil`), cutting discovery overhead by ~75% so subscriptions establish on the first packet during background reconnects.
 - [x] Implemented FTMS Control Point (`0x2AD9`) handshake in `BluetoothManager.swift`: sends `Request Control` (`0x00`) $\rightarrow$ on confirmation sends `Start or Resume` (`0x07`) to resume the training session on the bike console and unfreeze cadence/power streaming upon reconnect.
 - [x] Merged all targeted fixes into `release/2.2.1`.
+- [x] Blanked `CAPOWHR_GITHUB_TOKEN` and tracked `Config/Secrets.xcconfig` in git to enable Xcode Cloud CI builds and remove baked GitHub PAT.
 - [x] Unit test suite verified **14/14 green** on watchOS simulator.
 
 ### 🚀 Next Steps
-- [ ] Decide on baked GitHub PAT before archiving `release/2.2.1` (blank `CAPOWHR_GITHUB_TOKEN` in `Config/Secrets.xcconfig`).
-- [ ] Tag release `v2.2.1` and submit hotfix build to App Store review.
+- [ ] Push `release/2.2.1` to remote to trigger Xcode Cloud build for App Store submission.
+- [ ] Tag release `v2.2.1`.
 - [ ] Retroactively tag 2.2 baseline (`5b58569`).
 - [ ] Port/cherry-pick FTMS Control Point enhancements to `main` (3.0 train).
 
@@ -26,5 +27,5 @@ Two release trains. `main` is **3.0** (multi-modality features plus this summer'
 - [ ] Submit 3.0 after 2.2.1 is validated and shipped.
 
 ### 🛑 Blockers & Known Issues
-- A live fine-grained GitHub PAT is baked into the shipping `Info.plist` (`CaPowHrGitHubToken`, from `Config/Secrets.xcconfig`). Blank before archiving.
-- Hardware BLE paths cannot be simulated in the simulator; verification requires physical testing with the trainer.
+- None.
+

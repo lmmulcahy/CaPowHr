@@ -84,7 +84,6 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "19B1A0C62E78FB0D003B71A0"
             BuildableName = "CaPowHr Watch App.app"
-            BlueprintName = "CaPowHr Watch App"
             ReferencedContainer = "container:CaPowHr.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -101,7 +100,6 @@
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "19B1A0C62E78FB0D003B71A0"
             BuildableName = "CaPowHr Watch App.app"
-            BlueprintName = "CaPowHr Watch App"
             ReferencedContainer = "container:CaPowHr.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
