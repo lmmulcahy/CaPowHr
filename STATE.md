@@ -9,6 +9,7 @@ Two release trains. `main` is **3.0** (multi-modality features plus this summer'
 - [x] Diagnosed device test log: identified GATT discovery round-trip bottleneck causing background reconnect flapping on ICSE.
 - [x] Fixed FTMS distance reset bug in `WorkoutManager.swift`: distance now accumulates deltas and immediately re-baselines on counter resets instead of zeroing the workout display.
 - [x] Optimized `BluetoothManager.swift` service discovery: explicitly queries target characteristic UUIDs (`2A5B`, `2A63`, `2AD2/2ACD/2AD1`) instead of requesting all generic characteristics (`nil`), cutting discovery overhead by ~75% so subscriptions establish on the first packet during background reconnects.
+- [x] Implemented FTMS Control Point (`0x2AD9`) handshake in `BluetoothManager.swift`: sends `Request Control` (`0x00`) $\rightarrow$ on confirmation sends `Start or Resume` (`0x07`) to resume the training session on the bike console and unfreeze cadence/power streaming upon reconnect.
 - [x] Unit test suite verified **14/14 green** on watchOS simulator.
 
 ### 🚀 Next Steps
