@@ -3,20 +3,21 @@
 **Status:** active
 
 ### 🎯 Current Phase
-Two release trains. `main` is **3.0** (multi-modality features plus this summer's fixes); **2.2.1** is a minimal hotfix cut from the 2.2 baseline. Applying reconnection GATT optimizations and distance delta accumulation to `release/2.2.1` following on-device hardware verification.
+Two release trains. `main` is **3.0** (multi-modality features plus this summer's fixes); **2.2.1** is a minimal hotfix cut from the 2.2 baseline. All reconnection, FTMS Control Point (`0x2AD9`), and distance delta resilience fixes are merged into `release/2.2.1`.
 
 ### ✅ Just Completed
-- [x] Diagnosed device test log: identified GATT discovery round-trip bottleneck causing background reconnect flapping on ICSE.
+- [x] Diagnosed device test log: identified GATT discovery round-trip bottleneck and missing FTMS Control Point session handshake.
 - [x] Fixed FTMS distance reset bug in `WorkoutManager.swift`: distance now accumulates deltas and immediately re-baselines on counter resets instead of zeroing the workout display.
 - [x] Optimized `BluetoothManager.swift` service discovery: explicitly queries target characteristic UUIDs (`2A5B`, `2A63`, `2AD2/2ACD/2AD1`) instead of requesting all generic characteristics (`nil`), cutting discovery overhead by ~75% so subscriptions establish on the first packet during background reconnects.
 - [x] Implemented FTMS Control Point (`0x2AD9`) handshake in `BluetoothManager.swift`: sends `Request Control` (`0x00`) $\rightarrow$ on confirmation sends `Start or Resume` (`0x07`) to resume the training session on the bike console and unfreeze cadence/power streaming upon reconnect.
+- [x] Merged all targeted fixes into `release/2.2.1`.
 - [x] Unit test suite verified **14/14 green** on watchOS simulator.
 
 ### 🚀 Next Steps
-- [ ] Install build on Apple Watch and test background reconnect behavior on ICSE bike.
-- [ ] Confirm distance accumulation continues seamlessly through mid-workout disconnect/reconnect.
-- [ ] Merge `fix/2.2.1-reconnect-and-distance` into `release/2.2.1`.
-- [ ] Decide on baked GitHub PAT before archiving `release/2.2.1`.
+- [ ] Decide on baked GitHub PAT before archiving `release/2.2.1` (blank `CAPOWHR_GITHUB_TOKEN` in `Config/Secrets.xcconfig`).
+- [ ] Tag release `v2.2.1` and submit hotfix build to App Store review.
+- [ ] Retroactively tag 2.2 baseline (`5b58569`).
+- [ ] Port/cherry-pick FTMS Control Point enhancements to `main` (3.0 train).
 
 ### 📋 Backlog / Later
 - [ ] Delete throwaway branch `diag/2.2.1-ble-trace` once verification is done.
