@@ -529,7 +529,6 @@ extension WorkoutManager: BluetoothManagerDelegate {
         hasSeenFTMSTotalDistance = true
         distanceEstimator.reset()
         cscDistanceEstimator.reset()
-        DispatchQueue.main.async { self.distanceMeters = meters }
         let now = Date()
         if let lastTime = lastDistanceUpdateTime {
             let delta = meters - lastDistanceMetersSaved
@@ -537,13 +536,11 @@ extension WorkoutManager: BluetoothManagerDelegate {
                 addDistanceSampleForCurrentWorkout(delta, start: lastTime, end: now)
                 let dt = now.timeIntervalSince(lastTime)
                 if dt > 0 { DispatchQueue.main.async { self.cyclingSpeedMps = delta / dt } }
-                lastDistanceMetersSaved = meters
-                lastDistanceUpdateTime = now
+                DispatchQueue.main.async { self.distanceMeters += delta }
             }
-        } else {
-            lastDistanceUpdateTime = now
-            lastDistanceMetersSaved = meters
         }
+        lastDistanceMetersSaved = meters
+        lastDistanceUpdateTime = now
     }
     
     func btDidUpdateConnectedDevices(_ names: [String]) {

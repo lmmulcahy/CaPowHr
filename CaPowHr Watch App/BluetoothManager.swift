@@ -339,13 +339,30 @@ extension BluetoothManager: CBPeripheralDelegate {
         }
     }
     
+    private func targetCharacteristics(for serviceUUID: CBUUID) -> [CBUUID]? {
+        switch serviceUUID {
+        case BluetoothUUIDs.Service.cyclingPower:
+            return [BluetoothUUIDs.Characteristic.powerMeasurement]
+        case BluetoothUUIDs.Service.cyclingSpeedCadence:
+            return [BluetoothUUIDs.Characteristic.cscMeasurement]
+        case BluetoothUUIDs.Service.fitnessMachine:
+            return [
+                BluetoothUUIDs.Characteristic.indoorBikeData,
+                BluetoothUUIDs.Characteristic.treadmillData,
+                BluetoothUUIDs.Characteristic.rowerData
+            ]
+        default:
+            return nil
+        }
+    }
+    
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         guard let services = peripheral.services else { return }
         for service in services {
             print("Discovered service: \(service.uuid)")
             BluetoothLogManager.shared.logDidDiscoverService(service, peripheral: peripheral)
-            // Ask CoreBluetooth for all characteristics; we will filter by UUID
-            peripheral.discoverCharacteristics(nil, for: service)
+            let targets = targetCharacteristics(for: service.uuid)
+            peripheral.discoverCharacteristics(targets, for: service)
         }
     }
 
