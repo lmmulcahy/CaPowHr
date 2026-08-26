@@ -8,6 +8,7 @@ struct SettingsView: View {
     @AppStorage(AppSettings.distanceUnitKey) private var distanceUnit: String = DistanceUnit.miles.rawValue
     @AppStorage(AppSettings.workoutSaveModeKey) private var workoutSaveMode: String = WorkoutSaveMode.askEveryTime.rawValue
     @AppStorage(AppSettings.fitExportEnabledKey) private var fitExportEnabled: Bool = false
+    @AppStorage(AppSettings.calorieSourceKey) private var calorieSource: String = CalorieSource.appleWatch.rawValue
     
     private var heartRateSourceBinding: Binding<HeartRateSource> {
         Binding(
@@ -37,6 +38,19 @@ struct SettingsView: View {
                     }
                 }
                 .pickerStyle(.navigationLink)
+
+                Picker("Calories", selection: $calorieSource) {
+                    ForEach(CalorieSource.allCases) { source in
+                        Text(source.displayName).tag(source.rawValue)
+                    }
+                }
+                .pickerStyle(.navigationLink)
+
+                Text((CalorieSource(rawValue: calorieSource) ?? .appleWatch).explanation)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                 Picker("After Workout", selection: $workoutSaveMode) {
                     ForEach(WorkoutSaveMode.allCases) { mode in

@@ -143,6 +143,7 @@ class WorkoutManager: NSObject, ObservableObject {
         guard !isWorkoutActive else { return }
         currentWorkoutType = type
         AppSettings.lastWorkoutType = type
+        resetEnergyTracking()
 
         if connectIfNeeded && connectedDevices.isEmpty {
             isConnectingDuringWorkout = true
@@ -225,6 +226,9 @@ class WorkoutManager: NSObject, ObservableObject {
 
     private func resetEnergyTracking() {
         lastEnergyUpdateTime = nil
+        // Read the Calorie Source setting once per workout, so changing it mid-ride
+        // can't move ownership under a session that is already recording.
+        energyOwnership.allowsMachineOwnership = (AppSettings.calorieSource == .equipment)
         energyOwnership.reset()
         appleCollectedEnergyKcal = 0
     }
@@ -238,6 +242,7 @@ class WorkoutManager: NSObject, ObservableObject {
     func beginDisplayOnlyWorkoutIfPending() {
         guard pendingDisplayOnlyStart else { return }
         pendingDisplayOnlyStart = false
+        resetEnergyTracking()
         isDisplayOnlyMode = true
         isWorkoutActive = true
         isWorkoutPaused = false

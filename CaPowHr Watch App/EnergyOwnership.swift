@@ -20,6 +20,12 @@ enum EnergySource {
 ///
 /// The increment that triggers the handover is deliberately discarded: Apple's
 /// estimate already covered that interval, so booking it too would double-count.
+///
+/// Handover only happens at all when `allowsMachineOwnership` is true, which tracks
+/// the user's Calorie Source setting. It defaults to false because machine counters
+/// are typically derived from mechanical work and read several times lower than a
+/// heart-rate-informed estimate; letting one displace Apple's estimate mid-ride made
+/// saved workouts report a fraction of the calories the Move ring had shown.
 struct EnergyOwnership {
     /// What the caller should do with a machine total it just received.
     enum Outcome: Equatable {
@@ -35,8 +41,21 @@ struct EnergyOwnership {
     private(set) var source: EnergySource = .appleEstimate
     private var lastMachineTotalKcal: Double?
 
+    /// Whether the machine is permitted to take `activeEnergyBurned` from Apple.
+    /// Driven by the Calorie Source setting; when false the machine's counter is
+    /// never written to HealthKit and Apple's estimate owns the whole workout.
+    var allowsMachineOwnership: Bool = false
+
+    init(allowsMachineOwnership: Bool = false) {
+        self.allowsMachineOwnership = allowsMachineOwnership
+    }
+
     /// Feed in the machine's cumulative Expended Energy (kcal) from an FTMS packet.
     mutating func apply(machineTotalKcal total: Double) -> Outcome {
+        // Apple keeps ownership outright; don't even track a baseline, so flipping the
+        // setting mid-workout can't book a backlog as one burst.
+        guard allowsMachineOwnership else { return .ignore }
+
         defer { lastMachineTotalKcal = total }
 
         guard let last = lastMachineTotalKcal else {
@@ -67,7 +86,8 @@ struct EnergyOwnership {
         lastMachineTotalKcal = nil
     }
 
-    /// Return to the start-of-workout state.
+    /// Return to the start-of-workout state. `allowsMachineOwnership` is a
+    /// configuration flag, not workout state, so it survives.
     mutating func reset() {
         source = .appleEstimate
         lastMachineTotalKcal = nil
