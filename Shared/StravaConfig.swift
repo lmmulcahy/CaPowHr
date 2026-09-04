@@ -1,9 +1,9 @@
 //
 //  StravaConfig.swift
-//  Shared between the watch app and the iOS companion.
+//  CaPowHr
 //
 //  Configuration for Strava API integration. Client credentials are injected
-//  via Config/Secrets.xcconfig into each target's Info.plist.
+//  via Config/Secrets.xcconfig into the target's Info.plist.
 //
 
 import Foundation
@@ -42,14 +42,4 @@ enum StravaConfig {
     static let refreshTokenKey = "strava_refresh_token"
     static let expiresAtKey = "strava_expires_at"
     static let athleteIdKey = "strava_athlete_id"
-
-    // MARK: - WatchConnectivity Message Keys
-    static let wcMessageKeyAction = "action"
-    static let wcActionStartAuth = "startStravaAuth"
-    static let wcActionTokensUpdated = "tokensUpdated"
-    static let wcKeyAccessToken = "accessToken"
-    static let wcKeyRefreshToken = "refreshToken"
-    static let wcKeyExpiresAt = "expiresAt"
-    static let wcKeyAthleteId = "athleteId"
-    static let wcKeyAthleteName = "athleteName"
 }

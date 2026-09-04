@@ -59,7 +59,6 @@ struct ContentView: View {
         }
         .onAppear {
             workoutManager.requestHealthKitAuthorization()
-            WatchConnectivityManager.shared.delegate = stravaAuthManager
         }
         .onChange(of: workoutManager.isAwaitingSave) { _, awaiting in
             guard awaiting,

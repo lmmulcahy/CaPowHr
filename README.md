@@ -1,6 +1,6 @@
 # CaPowHr — BLE Indoor Workout App for Apple Watch
 
-A standalone watchOS app for recording indoor workouts from Bluetooth gym equipment — smart bikes, treadmills, and rowers — with power, cadence, heart rate, distance, and calories saved to Apple Health. Optional Strava sync via the iPhone companion app.
+A standalone watchOS app for recording indoor workouts from Bluetooth gym equipment — smart bikes, treadmills, and rowers — with power, cadence, heart rate, distance, and calories saved to Apple Health. Optional Strava sync directly from Apple Watch.
 
 ## Features
 
@@ -9,7 +9,7 @@ A standalone watchOS app for recording indoor workouts from Bluetooth gym equipm
 - **Real-time metrics**: Heart rate, power, cadence, speed, distance, incline, pace, stroke rate
 - **Intelligent heart rate selection**: Auto (prefers equipment HR), equipment-only, or Apple Watch-only
 - **Multi-strategy distance tracking**: FTMS total distance → CSC wheel revolutions → speed integration
-- **Energy tracking**: FTMS expended energy or power-based estimation
+- **Energy tracking**: Apple Watch metabolic estimate (default) or equipment expended energy
 - **HealthKit integration**: Workouts, HR, power, cadence, distance, speed, and active energy
 - **Display-only mode**: Live data when HealthKit write permission is denied
 
@@ -20,14 +20,10 @@ A standalone watchOS app for recording indoor workouts from Bluetooth gym equipm
 - **Pause / resume** and **manual lap splits**
 - **Post-workout summary** before save/discard (or auto-save)
 - **Customizable metric layouts** per equipment type
-- **Training zones** from max HR and FTP
-- **Structured workout templates** (free, warm/work/cool, 4×4 intervals)
 
 ### Integrations
 - **Strava** (optional, Settings): Upload after save when authenticated
-- **iPhone companion**: Strava OAuth and token sync to watch
 - **FIT export** from the workout summary screen
-- **Equipment compatibility list** built from successful connections/workouts
 - **Watch complications**: Quick-start your last workout type from the watch face
 
 ### Diagnostics
@@ -46,7 +42,7 @@ A standalone watchOS app for recording indoor workouts from Bluetooth gym equipm
 - Apple Watch Series 4 or later
 - watchOS 11.5 or later
 - BLE indoor equipment (FTMS bike/treadmill/rower and/or power/cadence sensors)
-- iPhone optional (recommended for Strava setup)
+- Standalone Apple Watch app (no iPhone required during workouts)
 
 ## Setup
 
@@ -59,9 +55,9 @@ A standalone watchOS app for recording indoor workouts from Bluetooth gym equipm
 ## Usage
 
 1. Launch CaPowHr on Apple Watch
-2. Optional: **Settings** → heart rate source, units, save mode, Strava, trusted devices, training
+2. Optional: **Settings** → heart rate source, calories source, units, save mode, Strava, trusted devices
 3. Tap **Start Ride/Run/Walk/Row** — connect sensors first or let the app scan while the workout runs
-4. Use **Pause**, **Lap**, and live zone feedback during the workout
+4. Use **Pause** and **Lap** during the workout
 5. Review the **workout summary**, export FIT if desired, then **Save** or **Discard**
 6. Saved workouts appear in Apple Health; Strava uploads when enabled and connected
 
@@ -73,10 +69,9 @@ A standalone watchOS app for recording indoor workouts from Bluetooth gym equipm
 | `BluetoothManager` | BLE scan, connect, trusted reconnect, parsing |
 | `HealthKitManager` | Authorization, session, samples, pause/resume |
 | `WorkoutStatsTracker` | Averages, laps, summary data |
-| `StructuredWorkoutController` | Template phase timing |
 | `FITExporter` | Post-workout FIT file generation |
-| `CompatibilityStore` | Tested equipment tracking |
-| `WatchConnectivityManager` | Strava token sync with iPhone companion |
+| `StravaAuthManager` | On-watch OAuth authentication |
+| `StravaUploader` | Direct background workout upload to Strava |
 
 ## Data Saved to Apple Health
 
@@ -97,7 +92,7 @@ See [AppStoreCopy.md](AppStoreCopy.md) for listing text.
 - **Sensors not connecting**: Power on equipment; try **Connect Sensors** or trusted-device reconnect in Settings
 - **No HR**: Check wrist fit and heart rate source setting
 - **Workout not saving**: Enable Health write permissions for CaPowHr on iPhone → Health → Data Access
-- **Strava**: Configure API keys in `Secrets.xcconfig` or use the iPhone companion app
+- **Strava**: Configure API keys in `Secrets.xcconfig` and authenticate in watch Settings
 - **Distance gaps**: Some sensors omit cumulative distance; CaPowHr falls back to CSC or speed integration
 
 ## Development
