@@ -2,20 +2,22 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>ITSAppUsesNonExemptEncryption</key>
-    <false/>
-    <key>StravaClientId</key>
-    <string>$(STRAVA_CLIENT_ID)</string>
-    <key>StravaClientSecret</key>
-    <string>$(STRAVA_CLIENT_SECRET)</string>
-    <key>CFBundleURLTypes</key>
-    <array>
-        <dict>
-            <key>CFBundleURLSchemes</key>
-            <array>
-                <string>capowhr</string>
-            </array>
-        </dict>
-    </array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>capowhr</string>
+			</array>
+		</dict>
+	</array>
+	<key>ITSWatchOnlyContainer</key>
+	<true/>
+	<key>LSApplicationLaunchProhibited</key>
+	<true/>
+	<key>StravaClientId</key>
+	<string>$(STRAVA_CLIENT_ID)</string>
+	<key>StravaClientSecret</key>
+	<string>$(STRAVA_CLIENT_SECRET)</string>
 </dict>
 </plist>
