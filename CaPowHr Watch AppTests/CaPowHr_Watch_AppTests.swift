@@ -341,7 +341,7 @@ struct CaPowHr_Watch_AppTests {
     @Test func energyOwnership_staysOnAppleEstimateWhileMachineReportsFlatZero() async throws {
         // Grupetto-style bridge: the Expended Energy field is present but padded with
         // zeros. Taking ownership here would save a zero-calorie workout.
-        var energy = EnergyOwnership()
+        var energy = EnergyOwnership(allowsMachineOwnership: true)
 
         #expect(energy.apply(machineTotalKcal: 0) == .ignore)
         for _ in 0..<20 {
@@ -351,7 +351,7 @@ struct CaPowHr_Watch_AppTests {
     }
 
     @Test func energyOwnership_takesOwnershipOnFirstIncrementWithoutBookingIt() async throws {
-        var energy = EnergyOwnership()
+        var energy = EnergyOwnership(allowsMachineOwnership: true)
 
         // First total is only a baseline.
         #expect(energy.apply(machineTotalKcal: 0) == .ignore)
@@ -368,7 +368,7 @@ struct CaPowHr_Watch_AppTests {
     }
 
     @Test func energyOwnership_ignoresStalledAndResetCounters() async throws {
-        var energy = EnergyOwnership()
+        var energy = EnergyOwnership(allowsMachineOwnership: true)
         #expect(energy.apply(machineTotalKcal: 10) == .ignore)
         #expect(energy.apply(machineTotalKcal: 11) == .takeOwnership)
         #expect(energy.apply(machineTotalKcal: 20) == .delta(kcal: 9))
@@ -382,7 +382,7 @@ struct CaPowHr_Watch_AppTests {
     }
 
     @Test func energyOwnership_rebaselineSkipsEnergyAccruedWhilePaused() async throws {
-        var energy = EnergyOwnership()
+        var energy = EnergyOwnership(allowsMachineOwnership: true)
         #expect(energy.apply(machineTotalKcal: 0) == .ignore)
         #expect(energy.apply(machineTotalKcal: 1) == .takeOwnership)
         #expect(energy.apply(machineTotalKcal: 10) == .delta(kcal: 9))
@@ -396,7 +396,7 @@ struct CaPowHr_Watch_AppTests {
     }
 
     @Test func energyOwnership_resetReturnsToAppleEstimate() async throws {
-        var energy = EnergyOwnership()
+        var energy = EnergyOwnership(allowsMachineOwnership: true)
         #expect(energy.apply(machineTotalKcal: 0) == .ignore)
         #expect(energy.apply(machineTotalKcal: 1) == .takeOwnership)
         #expect(energy.source == .machineReported)
@@ -408,5 +408,56 @@ struct CaPowHr_Watch_AppTests {
         #expect(energy.source == .appleEstimate)
     }
 
-}
+    // MARK: - Calorie source
 
+    @Test func energyOwnership_appleSourceNeverHandsOverToAClimbingCounter() async throws {
+        // Default configuration: the user left Calorie Source on Apple Watch.
+        var energy = EnergyOwnership()
+
+        for total in stride(from: 0.0, through: 60.0, by: 1.0) {
+            #expect(energy.apply(machineTotalKcal: total) == .ignore)
+        }
+        #expect(energy.source == .appleEstimate)
+    }
+
+    @Test func energyOwnership_appleSourceKeepsTheFullEstimateForTheWorkout() async throws {
+        // Regression for the field reports: a 45-minute ride where Apple's
+        // heart-rate-informed estimate reached ~375 kcal while the machine's own
+        // counter only reached ~62. Handing over on the machine's first increment
+        // meant the saved workout held the machine's number, and HealthKit then
+        // reconciled the Move ring down to it.
+        var appleOwned = EnergyOwnership()
+        var machineOwned = EnergyOwnership(allowsMachineOwnership: true)
+
+        var bookedUnderApple = 0.0
+        var bookedUnderMachine = 0.0
+        for total in stride(from: 0.0, through: 62.0, by: 1.0) {
+            if case .delta(let kcal) = appleOwned.apply(machineTotalKcal: total) {
+                bookedUnderApple += kcal
+            }
+            if case .delta(let kcal) = machineOwned.apply(machineTotalKcal: total) {
+                bookedUnderMachine += kcal
+            }
+        }
+
+        // Apple keeps collecting for the whole workout: CaPowHr writes nothing itself,
+        // so the saved total stays Apple's ~375 rather than the machine's 62.
+        #expect(bookedUnderApple == 0)
+        #expect(appleOwned.source == .appleEstimate)
+
+        // Opting in to Equipment still books the machine's counter, minus the
+        // handover increment that Apple's estimate already covered.
+        #expect(machineOwned.source == .machineReported)
+        #expect(bookedUnderMachine == 61)
+    }
+
+    @Test func energyOwnership_allowsMachineOwnershipSurvivesReset() async throws {
+        // The flag is configuration, not workout state, so a reset between workouts
+        // must not silently drop the user back to Apple.
+        var energy = EnergyOwnership(allowsMachineOwnership: true)
+        energy.reset()
+        #expect(energy.apply(machineTotalKcal: 10) == .ignore)
+        #expect(energy.apply(machineTotalKcal: 11) == .takeOwnership)
+    }
+
+}

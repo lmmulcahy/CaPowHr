@@ -22,6 +22,33 @@ enum DistanceUnit: String, CaseIterable, Identifiable {
     }
 }
 
+/// Who writes `activeEnergyBurned` for a workout.
+enum CalorieSource: String, CaseIterable, Identifiable {
+    /// Apple's heart-rate-informed estimate, collected by `HKLiveWorkoutDataSource`.
+    /// This is what the Move ring shows live, so it is the default.
+    case appleWatch
+    /// The machine's FTMS Expended Energy counter, written by CaPowHr.
+    case equipment
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .appleWatch: return "Apple Watch"
+        case .equipment: return "Equipment"
+        }
+    }
+
+    var explanation: String {
+        switch self {
+        case .appleWatch:
+            return "Uses your heart rate. Matches the Move ring."
+        case .equipment:
+            return "Uses the machine's own counter, which often reads low."
+        }
+    }
+}
+
 enum WorkoutSaveMode: String, CaseIterable, Identifiable {
     case askEveryTime
     case autoSave
@@ -48,6 +75,7 @@ enum AppSettings {
     static let stravaSyncEnabledKey = "stravaSyncEnabled"
     static let lastWorkoutTypeKey = "lastWorkoutType"
     static let fitExportEnabledKey = "fitExportEnabled"
+    static let calorieSourceKey = "calorieSource"
 
     static var distanceUnit: DistanceUnit {
         get {
@@ -56,6 +84,16 @@ enum AppSettings {
         }
         set {
             UserDefaults.standard.set(newValue.rawValue, forKey: distanceUnitKey)
+        }
+    }
+
+    static var calorieSource: CalorieSource {
+        get {
+            let raw = UserDefaults.standard.string(forKey: calorieSourceKey) ?? CalorieSource.appleWatch.rawValue
+            return CalorieSource(rawValue: raw) ?? .appleWatch
+        }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: calorieSourceKey)
         }
     }
 
