@@ -18,7 +18,7 @@ working 3.0 feature requests off the back of field reports.
 - [x] Watch unit suite green at 23/23 on the watchOS 26.5 simulator.
 
 ### 🚀 Next Steps
-- [ ] Merge PR #13 (`fix/watch-only-container-itms`) into `main` and verify the Xcode Cloud build passes.
+- [ ] Merge PR #14 (`remove-ios-companion`) into `main` and verify the Xcode Cloud build passes.
 - [ ] Verify on real hardware: FTMS Control Point handshake, and that a saved ride now keeps its Move ring calories.
 - [ ] Decide the rest of the 3.0 scope and trigger an Xcode Cloud build from `main`.
 - [ ] Delete stale branches: `diag/2.2.1-ble-trace`, `state-refresh-2.2.1-readiness`, `fix/2.2.1-reconnect-and-distance`, `port/2.2.1-ftms-fixes`, `fix/calorie-source-setting`, `ios-companion-strava-wip`.
