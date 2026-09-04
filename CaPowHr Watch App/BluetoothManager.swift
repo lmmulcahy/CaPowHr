@@ -29,6 +29,10 @@ enum BluetoothUUIDs {
         static let treadmillData = CBUUID(string: "2ACD")
         /// FTMS Rower Data (0x2AD1)
         static let rowerData = CBUUID(string: "2AD1")
+        /// FTMS Fitness Machine Control Point (0x2AD9)
+        static let fitnessMachineControlPoint = CBUUID(string: "2AD9")
+        /// FTMS Fitness Machine Status (0x2ADA)
+        static let fitnessMachineStatus = CBUUID(string: "2ADA")
     }
 }
 
@@ -116,6 +120,9 @@ final class BluetoothManager: NSObject {
     
     /// Keep track of discovered peripherals so we can connect to them by UUID later.
     private var discoveredPeripheralsDict: [UUID: CBPeripheral] = [:]
+
+    /// Control Point characteristic per peripheral, once discovered.
+    private var controlPoints: [UUID: CBCharacteristic] = [:]
 
     // CSC cadence tracking (for wrap-safe cadence deltas)
     private var cscLastCrankTime: UInt16 = 0
@@ -344,6 +351,7 @@ extension BluetoothManager: CBCentralManagerDelegate {
         // Clean up state regardless of disconnect cause
         if let idx = connectedPeripherals.firstIndex(of: peripheral) { connectedPeripherals.remove(at: idx) }
         if let idx = connectingPeripherals.firstIndex(of: peripheral) { connectingPeripherals.remove(at: idx) }
+        controlPoints.removeValue(forKey: peripheral.identifier)
         resetCSCState()
         delegate?.btDidDisconnect(name: name, error: error)
         delegate?.btDidUpdateConnectedDevices(connectedPeripherals.map { cachedDisplayName(for: $0) })
@@ -384,13 +392,49 @@ extension BluetoothManager: CBPeripheralDelegate {
         }
     }
     
+    // MARK: - FTMS Control Point Procedures
+
+    private enum FTMSOpCode: UInt8 {
+        case requestControl = 0x00
+        case reset          = 0x01
+        case startOrResume  = 0x07
+        case stopOrPause    = 0x08
+        case responseCode   = 0x80
+    }
+
+    private func writeControlPoint(_ opCode: FTMSOpCode, to peripheral: CBPeripheral) {
+        guard let cp = controlPoints[peripheral.identifier] else { return }
+        let payload = Data([opCode.rawValue])
+        BluetoothLogManager.shared.logTX(payload, characteristic: cp, peripheral: peripheral)
+        peripheral.writeValue(payload, for: cp, type: .withResponse)
+    }
+
+    private func targetCharacteristics(for serviceUUID: CBUUID) -> [CBUUID]? {
+        switch serviceUUID {
+        case BluetoothUUIDs.Service.cyclingPower:
+            return [BluetoothUUIDs.Characteristic.powerMeasurement]
+        case BluetoothUUIDs.Service.cyclingSpeedCadence:
+            return [BluetoothUUIDs.Characteristic.cscMeasurement]
+        case BluetoothUUIDs.Service.fitnessMachine:
+            return [
+                BluetoothUUIDs.Characteristic.indoorBikeData,
+                BluetoothUUIDs.Characteristic.treadmillData,
+                BluetoothUUIDs.Characteristic.rowerData,
+                BluetoothUUIDs.Characteristic.fitnessMachineControlPoint,
+                BluetoothUUIDs.Characteristic.fitnessMachineStatus
+            ]
+        default:
+            return nil
+        }
+    }
+    
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         guard let services = peripheral.services else { return }
         for service in services {
             print("Discovered service: \(service.uuid)")
             BluetoothLogManager.shared.logDidDiscoverService(service, peripheral: peripheral)
-            // Ask CoreBluetooth for all characteristics; we will filter by UUID
-            peripheral.discoverCharacteristics(nil, for: service)
+            let targets = targetCharacteristics(for: service.uuid)
+            peripheral.discoverCharacteristics(targets, for: service)
         }
     }
 
@@ -403,10 +447,16 @@ extension BluetoothManager: CBPeripheralDelegate {
                characteristic.uuid == BluetoothUUIDs.Characteristic.cscMeasurement ||
                characteristic.uuid == BluetoothUUIDs.Characteristic.indoorBikeData ||
                characteristic.uuid == BluetoothUUIDs.Characteristic.treadmillData ||
-               characteristic.uuid == BluetoothUUIDs.Characteristic.rowerData {
-                // Subscribe to notifications for streaming sensor data
+               characteristic.uuid == BluetoothUUIDs.Characteristic.rowerData ||
+               characteristic.uuid == BluetoothUUIDs.Characteristic.fitnessMachineStatus ||
+               characteristic.uuid == BluetoothUUIDs.Characteristic.fitnessMachineControlPoint {
+                // Subscribe to notifications/indications for streaming sensor data and control point responses
                 peripheral.setNotifyValue(true, for: characteristic)
                 BluetoothLogManager.shared.logNotifySet(true, characteristic: characteristic, peripheral: peripheral)
+
+                if characteristic.uuid == BluetoothUUIDs.Characteristic.fitnessMachineControlPoint {
+                    controlPoints[peripheral.identifier] = characteristic
+                }
 
                 // Detect device type based on which characteristic we're subscribing to
                 let detected: FitnessDeviceType?
@@ -432,6 +482,23 @@ extension BluetoothManager: CBPeripheralDelegate {
         }
     }
 
+    func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
+        guard characteristic.uuid == BluetoothUUIDs.Characteristic.fitnessMachineControlPoint else { return }
+        if let error {
+            print("Control point notify failed: \(error.localizedDescription)")
+            return
+        }
+        guard characteristic.isNotifying else { return }
+        print("FTMS Control Point indications enabled; sending Request Control...")
+        writeControlPoint(.requestControl, to: peripheral)
+    }
+
+    func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
+        if let error {
+            print("Control point write error: \(error.localizedDescription)")
+        }
+    }
+
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         guard let data = characteristic.value else { return }
         // Notifications stream for the whole workout; don't print them in release builds.
@@ -439,6 +506,20 @@ extension BluetoothManager: CBPeripheralDelegate {
         print("Received data from characteristic: \(characteristic.uuid)")
         #endif
         BluetoothLogManager.shared.logRX(data, characteristic: characteristic, peripheral: peripheral, error: error)
+
+        // FTMS Control Point responses: Op Code 0x80, then request op code, then result code (0x01 = Success).
+        // Chain Start/Resume (0x07) onto successful Request Control (0x00) so the machine starts/resumes its training session.
+        if characteristic.uuid == BluetoothUUIDs.Characteristic.fitnessMachineControlPoint {
+            guard data.count >= 3, data[0] == FTMSOpCode.responseCode.rawValue else { return }
+            let requested = data[1], result = data[2]
+            print("FTMS Control Point response: request 0x\(String(requested, radix: 16)) result 0x\(String(result, radix: 16))")
+            if requested == FTMSOpCode.requestControl.rawValue && (result == 0x01 || result == 0x02) {
+                print("FTMS Control granted; starting/resuming training session on machine...")
+                writeControlPoint(.startOrResume, to: peripheral)
+            }
+            return
+        }
+
         if characteristic.uuid == BluetoothUUIDs.Characteristic.powerMeasurement {
             if let watts = CyclingSensorParser.parsePowerMeasurement(data) {
                 delegate?.btDidUpdatePower(watts: watts)
