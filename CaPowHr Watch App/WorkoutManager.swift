@@ -125,7 +125,6 @@ class WorkoutManager: NSObject, ObservableObject {
     override init() {
         super.init()
         bluetoothManager.delegate = self
-        WatchConnectivityManager.shared.activate()
         attemptReconnectToTrustedDevices()
     }
 

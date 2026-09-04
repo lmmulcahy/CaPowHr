@@ -31,14 +31,11 @@ Apple Fitness is great for many workouts, but it does not capture external power
 **Health data**
 Workouts save to Apple Health with heart rate, power, cadence, distance, speed, and active energy where available.
 
-**Companion app**
-Use the optional iPhone companion to connect Strava when watch-only OAuth is inconvenient.
-
 ## Keywords
 indoor cycling,power meter,FTMS,treadmill,rower,Apple Watch,HealthKit,Strava,Bluetooth,cadence,trainer
 
 ## What's New (3.0)
-- Strava upload after your workout, with an optional iPhone companion app for easy sign-in
+- Strava upload after your workout with direct on-watch sign-in
 - Trusted devices: auto-reconnect to your regular bike, treadmill, or rower
 - Post-workout summary with save or discard
 - Customizable metric layouts for each equipment type
