@@ -121,12 +121,6 @@ final class StravaAuthManager: NSObject, ObservableObject {
         webAuthSession?.start()
     }
 
-    func authenticateViaCompanion() {
-        authError = nil
-        WatchConnectivityManager.shared.requestAuthFromiPhone()
-        authError = "Open CaPowHr on iPhone to connect Strava"
-    }
-    
     func logout() {
         do {
             try keychain.delete(account: StravaConfig.accessTokenKey)
@@ -269,35 +263,3 @@ final class StravaAuthManager: NSObject, ObservableObject {
     }
 }
 
-// MARK: - WatchConnectivityDelegate
-
-extension StravaAuthManager: WatchConnectivityDelegate {
-    func watchConnectivityDidRequestStravaAuth() {}
-
-    func watchConnectivityDidReceiveTokens(
-        accessToken: String,
-        refreshToken: String,
-        expiresAt: Double,
-        athleteId: String?,
-        athleteName: String?
-    ) {
-        Task { @MainActor in
-            do {
-                let keychain = KeychainStore(service: StravaConfig.keychainService)
-                try keychain.upsertString(accessToken, account: StravaConfig.accessTokenKey)
-                try keychain.upsertString(refreshToken, account: StravaConfig.refreshTokenKey)
-                try keychain.upsertString(String(expiresAt), account: StravaConfig.expiresAtKey)
-                if let athleteId {
-                    try keychain.upsertString(athleteId, account: StravaConfig.athleteIdKey)
-                }
-                if let athleteName {
-                    self.athleteName = athleteName
-                }
-                isAuthenticated = true
-                authError = nil
-            } catch {
-                authError = error.localizedDescription
-            }
-        }
-    }
-}

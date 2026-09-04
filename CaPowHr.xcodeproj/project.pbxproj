@@ -170,13 +170,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		19D0A0142FB9B10000A1B2C3 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		19D0A0152FB9B10000A1B2C3 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -230,8 +223,6 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 19B1A0EE2E78FB0E003B71A0 /* Build configuration list for PBXNativeTarget "CaPowHr" */;
 			buildPhases = (
-				19D0A0162FB9B10000A1B2C3 /* Sources */,
-				19D0A0142FB9B10000A1B2C3 /* Frameworks */,
 				19B1A0BF2E78FB0D003B71A0 /* Resources */,
 				19B1A0ED2E78FB0E003B71A0 /* Embed Watch Content */,
 			);
@@ -447,13 +438,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		19B1A0DC2E78FB0E003B71A0 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		19D0A0162FB9B10000A1B2C3 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -703,7 +687,6 @@
 			baseConfigurationReference = 19C7A5C92FB9A01100A1B2C3 /* Secrets.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = CaPowHr/CaPowHr.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = UX8Q7W992R;
@@ -711,19 +694,11 @@
 				INFOPLIST_FILE = CaPowHr/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = CaPowHr;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
 				MARKETING_VERSION = 3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.MulcahyHeavyIndustries.CaPowHr;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -732,7 +707,6 @@
 			baseConfigurationReference = 19C7A5C92FB9A01100A1B2C3 /* Secrets.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = CaPowHr/CaPowHr.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = UX8Q7W992R;
@@ -740,19 +714,11 @@
 				INFOPLIST_FILE = CaPowHr/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = CaPowHr;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
 				MARKETING_VERSION = 3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.MulcahyHeavyIndustries.CaPowHr;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;

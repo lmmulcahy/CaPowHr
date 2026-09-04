@@ -98,30 +98,17 @@ struct StravaSettingsView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
             } else {
-                VStack(spacing: 8) {
-                    Button {
-                        authManager.authenticate()
-                    } label: {
-                        HStack {
-                            Image(systemName: "link")
-                            Text("Connect on Watch")
-                        }
-                        .font(.footnote)
+                Button {
+                    authManager.authenticate()
+                } label: {
+                    HStack {
+                        Image(systemName: "link")
+                        Text("Connect with Strava")
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.orange)
-
-                    Button {
-                        authManager.authenticateViaCompanion()
-                    } label: {
-                        HStack {
-                            Image(systemName: "iphone")
-                            Text("Connect via iPhone")
-                        }
-                        .font(.footnote)
-                    }
-                    .buttonStyle(.bordered)
+                    .font(.footnote)
                 }
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
             }
         }
     }
