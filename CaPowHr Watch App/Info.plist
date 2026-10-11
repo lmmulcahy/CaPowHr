@@ -12,8 +12,6 @@
     <array>
         <string>workout-processing</string>
     </array>
-    <key>CaPowHrGitHubToken</key>
-    <string>$(CAPOWHR_GITHUB_TOKEN)</string>
     <key>StravaClientId</key>
     <string>$(STRAVA_CLIENT_ID)</string>
     <key>StravaClientSecret</key>

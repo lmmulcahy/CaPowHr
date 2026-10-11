@@ -1,7 +1,8 @@
 import SwiftUI
 import CoreBluetooth
+import UniformTypeIdentifiers
 
-/// Standalone BLE log capture flow for diagnostic uploads.
+/// Standalone BLE log capture flow for diagnostics; the captured log is shared via the share sheet.
 /// This view reuses the app's existing Bluetooth stack (via WorkoutManager) to reliably connect
 /// even when sensors start disconnected.
 struct BLELogCaptureView: View {
@@ -25,12 +26,8 @@ struct BLELogCaptureView: View {
                 connectingView
             case .countdown(let remaining):
                 countdownView(remaining: remaining)
-            case .captured:
-                capturedView
-            case .uploading:
-                progressView(message: "Uploading…")
-            case .success(let url):
-                successView(url: url)
+            case .captured(let logURL):
+                capturedView(logURL: logURL)
             case .failure(let message):
                 failureView(message: message)
             }
@@ -54,7 +51,7 @@ struct BLELogCaptureView: View {
                         .font(.headline)
                 }
                 
-                Text("This will connect to your sensors and record 20 seconds of data for diagnostic upload.")
+                Text("This will connect to your sensors and record 20 seconds of data you can share for diagnostics.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -136,7 +133,7 @@ struct BLELogCaptureView: View {
         }
     }
     
-    private var capturedView: some View {
+    private func capturedView(logURL: URL) -> some View {
         ScrollView {
             VStack(spacing: 12) {
                 Image(systemName: "checkmark.circle.fill")
@@ -146,49 +143,18 @@ struct BLELogCaptureView: View {
                 Text("Log Captured!")
                     .font(.headline)
                 
-                Text("Ready to upload for diagnostics.")
+                Text("Share it via Messages or Mail for diagnostics.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                 
-                if let tokenError = viewModel.tokenErrorMessage {
-                    Text(tokenError)
-                        .font(.caption2)
-                        .foregroundStyle(.red)
-                        .multilineTextAlignment(.center)
-                } else if viewModel.hasToken {
-                    Button {
-                        viewModel.uploadLog()
-                    } label: {
-                        Label("Upload Log", systemImage: "arrow.up.circle.fill")
-                    }
-                    .buttonStyle(.borderedProminent)
-                } else {
-                    Text("No GitHub token configured.")
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
+                ShareLink(
+                    item: BLELogExport(url: logURL),
+                    preview: SharePreview(logURL.lastPathComponent)
+                ) {
+                    Label("Share Log", systemImage: "square.and.arrow.up")
                 }
-                
-                Button("Discard") {
-                    viewModel.discard()
-                    dismiss()
-                }
-                .font(.footnote)
-                .foregroundStyle(.red)
-            }
-            .padding()
-        }
-    }
-    
-    private func successView(url: URL) -> some View {
-        ScrollView {
-            VStack(spacing: 12) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.largeTitle)
-                    .foregroundStyle(.green)
-                
-                Text("Upload Complete!")
-                    .font(.headline)
+                .buttonStyle(.borderedProminent)
                 
                 Button("Done") {
                     dismiss()
@@ -206,7 +172,7 @@ struct BLELogCaptureView: View {
                     .font(.largeTitle)
                     .foregroundStyle(.red)
                 
-                Text("Upload Failed")
+                Text("Capture Failed")
                     .font(.headline)
                 
                 Text(message)
@@ -214,19 +180,29 @@ struct BLELogCaptureView: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                 
-                Button("Retry") {
-                    viewModel.uploadLog()
+                Button("Back") {
+                    viewModel.reset()
                 }
                 .font(.footnote)
-                
-                Button("Discard & Go Back") {
-                    viewModel.discard()
-                    dismiss()
-                }
-                .font(.footnote)
-                .foregroundStyle(.red)
             }
             .padding()
+        }
+    }
+}
+
+// MARK: - Share Representation
+
+/// A captured BLE log, offered to the share sheet as a .jsonl file with a plain-text fallback
+/// for destinations that only accept text.
+struct BLELogExport: Transferable {
+    let url: URL
+    
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(exportedContentType: .json) { export in
+            SentTransferredFile(export.url)
+        }
+        ProxyRepresentation { export in
+            String(decoding: try Data(contentsOf: export.url), as: UTF8.self)
         }
     }
 }
@@ -240,64 +216,22 @@ final class BLELogCaptureViewModel: NSObject, ObservableObject {
         case disconnecting
         case connecting
         case countdown(remaining: Int)
-        case captured
-        case uploading
-        case success(URL)
+        case captured(URL)
         case failure(String)
     }
     
     @Published private(set) var state: State = .idle
     @Published private(set) var connectedDevices: [String] = []
-    @Published private(set) var hasToken: Bool = false
-    @Published private(set) var tokenErrorMessage: String?
     
     private let workoutManager: WorkoutManager
     private let bleLog = BluetoothLogManager.shared
-    private let client = GitHubIssueClient()
     
     private var countdownTimer: Timer?
     private var countdownRemaining: Int = 20
-    private var capturedLogURL: URL?
-    
-    private var savedToken: String = ""
-    private let keychain = KeychainStore(service: "com.capowhr.github")
-    private let keychainAccount = "githubToken"
     
     init(workoutManager: WorkoutManager) {
         self.workoutManager = workoutManager
         super.init()
-        loadToken()
-    }
-    
-    private func loadToken() {
-        do {
-            if let saved = try keychain.readString(account: keychainAccount), !saved.isEmpty {
-                savedToken = saved
-                hasToken = true
-            } else if let bundled = readBundledToken(), !bundled.isEmpty {
-                savedToken = bundled
-                hasToken = true
-            } else {
-                savedToken = ""
-                hasToken = false
-            }
-            tokenErrorMessage = nil
-        } catch {
-            tokenErrorMessage = error.localizedDescription
-            savedToken = ""
-            hasToken = false
-        }
-    }
-    
-    private func readBundledToken() -> String? {
-        let keys = ["CaPowHrGitHubToken", "INFOPLIST_KEY_CaPowHrGitHubToken", "CAPOWHR_GITHUB_TOKEN"]
-        for key in keys {
-            if let v = Bundle.main.object(forInfoDictionaryKey: key) as? String {
-                let t = v.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !t.isEmpty { return t }
-            }
-        }
-        return nil
     }
     
     func startCapture() {
@@ -327,60 +261,8 @@ final class BLELogCaptureViewModel: NSObject, ObservableObject {
         state = .idle
     }
     
-    func discard() {
-        stopCapture()
-        // Session was already ended when capture completed or cancelled
-    }
-    
-    func uploadLog() {
-        guard hasToken else {
-            state = .failure("No GitHub token available.")
-            return
-        }
-        
-        guard let loaded = bleLog.loadLatestLogText() else {
-            state = .failure("No BLE log found.")
-            return
-        }
-        
-        state = .uploading
-        
-        Task {
-            await performUpload(loaded: loaded)
-        }
-    }
-    
-    private func performUpload(loaded: (text: String, wasTruncated: Bool, filename: String)) async {
-        let title = "BLE diagnostic log: \(loaded.filename)"
-        
-        var body = """
-        Automated BLE diagnostic log upload from CaPowHr (watch).
-
-        Log file: \(loaded.filename)
-        Truncated: \(loaded.wasTruncated ? "yes" : "no")
-
-        ```jsonl
-        \(loaded.text)
-        ```
-        """
-        
-        if body.count > 60_000 {
-            body = String(body.suffix(60_000))
-        }
-        
-        do {
-            let url = try await client.createIssue(
-                owner: "lmmulcahy",
-                repo: "CaPowHrPublic",
-                title: title,
-                body: body,
-                labels: ["ble-log", "diagnostic"],
-                token: savedToken.trimmingCharacters(in: .whitespacesAndNewlines)
-            )
-            state = .success(url)
-        } catch {
-            state = .failure(error.localizedDescription)
-        }
+    func reset() {
+        state = .idle
     }
     
     private func stopCapture() {
@@ -415,9 +297,12 @@ final class BLELogCaptureViewModel: NSObject, ObservableObject {
     
     private func finishCapture() {
         bleLog.endSession(reason: "diagnostic_capture_complete")
-        capturedLogURL = bleLog.latestLogFileURL
         stopCapture()
-        state = .captured
+        if let url = bleLog.latestLogFileURL {
+            state = .captured(url)
+        } else {
+            state = .failure(bleLog.lastErrorMessage ?? "No BLE log file was written.")
+        }
     }
     
     private static func makeAppContext() -> [String: String] {

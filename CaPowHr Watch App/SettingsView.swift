@@ -76,7 +76,7 @@ struct SettingsView: View {
                         .font(.footnote)
                 }
 
-                if FeatureFlags.showBLELogUpload {
+                if FeatureFlags.showBLELogCapture {
                     NavigationLink {
                         BLELogCaptureView(workoutManager: workoutManager)
                     } label: {

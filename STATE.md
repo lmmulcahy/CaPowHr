@@ -1,34 +1,32 @@
 # CaPowHr
-**Last Updated:** 2026-09-03
+**Last Updated:** 2026-10-10
 **Status:** active
 
 ### 🎯 Current Phase
-2.2.1 is released and tagged; the hotfix train is closed. All work is now on `main`,
-which carries the 3.0 multi-modality feature set plus every 2.2.1 BLE fix. Currently
-working 3.0 feature requests off the back of field reports.
+2.2.1 is shipped; `main` carries the 3.0 feature set as a pure watch-only app. The repo
+was audited for secrets ahead of a fork/contribution request and is clean; the BLE log
+capture flow is moving from a bundled GitHub token to the system share sheet.
 
 ### ✅ Just Completed
-- [x] Released 2.2.1; tagged `v2.2.1` and retroactively tagged the `v2.2` baseline.
-- [x] Ported the FTMS Control Point (`0x2AD9`) handshake and targeted characteristic discovery to `main` (PR #11 merged).
-- [x] Made `main` build from a clean checkout: `Config/Secrets.xcconfig` tracked blank, real values via gitignored `Secrets.local.xcconfig`.
-- [x] Diagnosed and fixed App Store Connect ITMS validation failures (ITMS-90639, ITMS-90753, ITMS-90022, ITMS-90713): restored `LSApplicationLaunchProhibited` and `ITSWatchOnlyContainer` on the root iOS container and added populated iOS AppIcon assets.
-- [x] Removed incomplete iOS companion app and WatchConnectivity bridge; restored pure watch-only container architecture.
-- [x] Updated README.md and AppStoreCopy.md to reflect shipped 3.0 standalone watchOS feature set.
-- [x] Confirmed the miles/kilometers option users asked for already exists in 3.0 — it was absent only in shipped 2.2.1.
-- [x] Watch unit suite green at 23/23 on the watchOS 26.5 simulator.
+- [x] Audited repo and full history for sensitive data; rotated the leaked Strava client secret and deleted the remote `ios-companion-strava-wip` branch.
+- [x] BLE log capture now shares the log via the share sheet; GitHub issue upload, bundled token, and `CAPOWHR_GITHUB_TOKEN` removed (PR open).
+- [x] Merged PR #14: removed the incomplete iOS companion app and WatchConnectivity bridge.
+- [x] Fixed App Store Connect ITMS validation failures for the watch-only container.
+- [x] Released 2.2.1; tagged `v2.2.1` and the `v2.2` baseline.
+- [x] Made `main` build from a clean checkout: blank tracked `Secrets.xcconfig`, real values via gitignored `Secrets.local.xcconfig`.
 
 ### 🚀 Next Steps
-- [ ] Merge PR #14 (`remove-ios-companion`) into `main` and verify the Xcode Cloud build passes.
-- [ ] Verify on real hardware: FTMS Control Point handshake, and that a saved ride now keeps its Move ring calories.
+- [ ] Merge the BLE log share-sheet PR; on a real watch, confirm a full 20-second log shares intact via Messages and Mail.
+- [ ] Verify on real hardware: FTMS Control Point handshake, and that a saved ride keeps its Move ring calories.
 - [ ] Decide the rest of the 3.0 scope and trigger an Xcode Cloud build from `main`.
-- [ ] Delete stale branches: `diag/2.2.1-ble-trace`, `state-refresh-2.2.1-readiness`, `fix/2.2.1-reconnect-and-distance`, `port/2.2.1-ftms-fixes`, `fix/calorie-source-setting`, `ios-companion-strava-wip`.
+- [ ] Delete stale local branches: `diag/2.2.1-ble-trace`, `state-refresh-2.2.1-readiness`, `fix/2.2.1-reconnect-and-distance`, `port/2.2.1-ftms-fixes`, `fix/calorie-source-setting`, `ios-companion-strava-wip`.
 
 ### 📋 Backlog / Later
 - [ ] Default the distance unit from the device locale instead of hard-defaulting to Miles.
 - [ ] Whole-ride BLE logging behind a user-facing debug toggle.
 - [ ] `didFailToConnect` fallback retry handling.
 - [ ] FTMS resistance/incline control, now that the Control Point handshake exists.
-- [ ] Restore local Strava credentials in `Config/Secrets.local.xcconfig` (blanked during the 2.2.1 CI work).
+- [ ] Restore local Strava credentials in `Config/Secrets.local.xcconfig` (blanked during the 2.2.1 CI work; secret since rotated).
 
 ### 🛑 Blockers & Known Issues
 - None.
