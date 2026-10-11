@@ -4,9 +4,9 @@ import CoreBluetooth
 // MARK: - BluetoothLogManager
 //
 // Records all BLE activity (scan/discovery/connect/notify/RX/TX) into a per-session log file.
-// Format: JSON Lines (one JSON object per line) for easy grepping and sharing in GitHub issues.
+// Format: JSON Lines (one JSON object per line) for easy grepping.
 //
-// Files are written under Documents/BLELogs/ and can be exported via ShareLink in the UI.
+// Files are written under Documents/BLELogs/ and shared via ShareLink in BLELogCaptureView.
 
 final class BluetoothLogManager: ObservableObject {
     static let shared = BluetoothLogManager()
@@ -28,40 +28,6 @@ final class BluetoothLogManager: ObservableObject {
 
     private init() {
         latestLogFileURL = Self.findLatestLogFileURL()
-    }
-
-    /// Loads the latest log file as UTF-8 text, truncating from the front if needed.
-    /// Intended for embedding into a GitHub issue body.
-    func loadLatestLogText(maxBytes: Int = 45_000) -> (text: String, wasTruncated: Bool, filename: String)? {
-        guard let url = latestLogFileURL else { return nil }
-        return Self.loadLogText(from: url, maxBytes: maxBytes)
-    }
-
-    static func loadLogText(from url: URL, maxBytes: Int = 45_000) -> (text: String, wasTruncated: Bool, filename: String)? {
-        do {
-            var data = try Data(contentsOf: url)
-            let filename = url.lastPathComponent
-
-            var wasTruncated = false
-            if data.count > maxBytes {
-                wasTruncated = true
-                let tailSlice = data.suffix(maxBytes)
-                data = Data(tailSlice)
-
-                // Try to start on a newline boundary (JSONL), so the first line isn't half-record.
-                if let firstNewline = data.firstIndex(of: 0x0A) {
-                    let start = data.index(after: firstNewline)
-                    if start < data.endIndex {
-                        data = data.subdata(in: start..<data.endIndex)
-                    }
-                }
-            }
-
-            let text = String(decoding: data, as: UTF8.self)
-            return (text: text, wasTruncated: wasTruncated, filename: filename)
-        } catch {
-            return nil
-        }
     }
 
     func startSession(reason: String, appContext: [String: String] = [:]) {
@@ -278,7 +244,7 @@ final class BluetoothLogManager: ObservableObject {
     }
 
     private static func stringifyAdvertisement(_ advertisementData: [String: Any]) -> [String: String] {
-        // Keep this intentionally lossy + stringy: it’s for debugging and GitHub issues, not rehydration.
+        // Keep this intentionally lossy + stringy: it’s for debugging, not rehydration.
         var out: [String: String] = [:]
         for (k, v) in advertisementData {
             if let uuids = v as? [CBUUID] {

@@ -27,7 +27,7 @@ A standalone watchOS app for recording indoor workouts from Bluetooth gym equipm
 - **Watch complications**: Quick-start your last workout type from the watch face
 
 ### Diagnostics
-- **BLE log capture** for sensor compatibility troubleshooting (Settings)
+- **BLE log capture** for sensor compatibility troubleshooting (Settings), shared via Messages or Mail
 
 ## Supported Sensors
 
