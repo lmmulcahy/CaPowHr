@@ -22,7 +22,8 @@ for glob in "$@"; do
         echo "$glob" >> "$LOCK"
         echo "locked: $glob"
     fi
-    matches=$(cd "$ROOT" && for f in $glob; do [[ -e "$f" ]] && echo "$f"; done 2>/dev/null | wc -l | tr -d ' ')
+    # compgen -G takes the pattern as one word, so paths with spaces work.
+    matches=$(cd "$ROOT" && { compgen -G "$glob" || true; } | wc -l | tr -d ' ')
     [[ "$matches" == "0" ]] && echo "  warning: '$glob' matches no existing file"
 done
 
