@@ -26,7 +26,7 @@ this: Claude fixes it, verify passes, commit.
 | Guardrail | Mechanism | Notes |
 |---|---|---|
 | Build + unit tests pass | `scripts/verify.sh` | Log with commit hash: `.claude/last-verify.log` (gitignored). That log is the PR evidence. |
-| Claude can't stop with a broken build | Stop hook `.claude/hooks/stop-verify.sh` | Runs verify only if uncommitted Swift/project files changed since the last pass. Gives up after 3 retries and tells you. |
+| Claude can't stop with a broken build | Stop hook `.claude/hooks/stop-verify.sh` | Runs verify only if uncommitted Swift/project files changed since the last pass. Gives up after 3 retries and tells you. During a feature's red phase (tests written, implementation unfinished) only a broken build blocks; a green verify ends the red phase. |
 | Docs get updated | Same Stop hook | One non-blocking reminder when code changed on the branch but `docs/` didn't. |
 | Commits build | `.githooks/pre-commit` | Only when Swift/project files are staged; skipped if that exact tree already passed. `--no-verify` is blocked for Claude. |
 | Approved tests can't be bent | PreToolUse hooks `guard-edits.sh` + `guard-bash.sh` | Blocks edits to anything in `.claude/test-lock`, and to the lock, hooks, settings and lock scripts. |
@@ -36,7 +36,7 @@ The pre-existing test files are locked from day one.
 
 ## Your commands
 - `scripts/setup.sh`: once per clone/worktree (sets `core.hooksPath=.githooks`).
-- `scripts/lock-tests.sh <glob>...`: lock approved tests (also ends the "red phase").
+- `scripts/lock-tests.sh <glob>...`: lock approved tests. They're committed with the first green task, since commits need a passing suite.
 - `scripts/unlock-tests.sh <glob>`: unlock when you agree a test is wrong. No args = list locks.
 - `scripts/verify.sh` / `VERIFY_UI=1 scripts/verify.sh`: run the gate yourself.
 - Run these in a terminal, or prefix with `!` in Claude Code. Claude itself is

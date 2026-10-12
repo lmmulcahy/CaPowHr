@@ -5,6 +5,9 @@
 #     the errors back so Claude keeps working. stop_hook_active guards against
 #     an endless loop: after MAX_RETRIES consecutive forced continuations the
 #     stop is allowed and the human is told verify is still red.
+#     During /build's red phase (failing tests written, implementation not
+#     finished) failing tests are expected, so only a broken build blocks.
+#     verify.sh ends the red phase when the suite goes green.
 #  2. If source changed on this branch (vs main) but nothing under docs/ did,
 #     remind Claude once to update the spec. This never blocks.
 set -uo pipefail
@@ -32,34 +35,29 @@ if [[ -n "$uncommitted_source" ]]; then
     [[ "$fp" != "$last" ]] && needs_verify=1
 fi
 
-if [[ $needs_verify -eq 1 && -f "$state/red-phase" ]]; then
-    # /build wrote failing tests and is waiting for the human to approve and
-    # lock them. A red suite is expected; don't force Claude to "fix" it.
-    feature="$(cat "$state/red-phase")"
-    jq -n --arg f "$feature" '{systemMessage: ("verify skipped: red phase for \($f) — tests are written and expected to fail until you approve them and run scripts/lock-tests.sh")}'
-    exit 0
-fi
-
-if [[ $needs_verify -eq 1 ]]; then
-    if ! scripts/verify.sh > "$state/stop-verify.out" 2>&1; then
-        retries="$(cat "$state/stop-retries" 2>/dev/null || echo 0)"
-        if [[ "$active" == "true" && "$retries" -ge "$MAX_RETRIES" ]]; then
-            rm -f "$state/stop-retries"
-            jq -n --arg n "$MAX_RETRIES" '{systemMessage: ("scripts/verify.sh is still failing after \($n) automatic retries. Stopping so you can look; see .claude/last-verify.log")}'
-            exit 0
-        fi
-        echo $((retries + 1)) > "$state/stop-retries"
-        errors="$(grep -E '(error|failed|FAIL)' .claude/last-verify.log | grep -v -E '^(note|warning):' | sort -u | head -40)"
-        summary="$(sed -n '/=== VERIFY SUMMARY ===/,$p' .claude/last-verify.log)"
-        reason="scripts/verify.sh failed, so this work is not done. Fix the cause and let verify pass before stopping. Do not edit locked tests or weaken assertions; if a test looks wrong, say so to the human instead.
+if [[ $needs_verify -eq 1 ]] && ! scripts/verify.sh > "$state/stop-verify.out" 2>&1; then
+    if [[ -f "$state/red-phase" && "$(cat "$state/last-build-status" 2>/dev/null)" == "PASS" ]]; then
+        feature="$(cat "$state/red-phase")"
+        jq -n --arg f "$feature" '{systemMessage: ("red phase for \($f): the build passes; failing tests are expected until the implementation is finished.")}'
+        exit 0
+    fi
+    retries="$(cat "$state/stop-retries" 2>/dev/null || echo 0)"
+    if [[ "$active" == "true" && "$retries" -ge "$MAX_RETRIES" ]]; then
+        rm -f "$state/stop-retries"
+        jq -n --arg n "$MAX_RETRIES" '{systemMessage: ("scripts/verify.sh is still failing after \($n) automatic retries. Stopping so you can look; see .claude/last-verify.log")}'
+        exit 0
+    fi
+    echo $((retries + 1)) > "$state/stop-retries"
+    errors="$(grep -E '(error|failed|FAIL)' .claude/last-verify.log | grep -v -E '^(note|warning):' | sort -u | head -40)"
+    summary="$(sed -n '/=== VERIFY SUMMARY ===/,$p' .claude/last-verify.log)"
+    reason="scripts/verify.sh failed, so this work is not done. Fix the cause and let verify pass before stopping. Do not edit locked tests or weaken assertions; if a test looks wrong, say so to the human instead.
 
 $summary
 
 Errors (from .claude/last-verify.log):
 $errors"
-        jq -n --arg r "$reason" '{decision: "block", reason: $r}'
-        exit 0
-    fi
+    jq -n --arg r "$reason" '{decision: "block", reason: $r}'
+    exit 0
 fi
 rm -f "$state/stop-retries"
 
