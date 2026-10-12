@@ -30,11 +30,13 @@ DERIVED="$ROOT/build/DerivedData-verify"
 
 # Fingerprint of everything that affects the build. The Stop and pre-commit
 # hooks compare it against the last passing run to skip redundant verifies.
+# Sorted, because ls-files lists tracked files before untracked ones and
+# staging a new file would otherwise change the fingerprint.
 fingerprint() {
     {
         git ls-files -co --exclude-standard -z -- \
             '*.swift' '*.pbxproj' '*.plist' '*.xcconfig' '*.entitlements' '*.xcscheme' \
-            | xargs -0 shasum 2>/dev/null
+            | sort -z | xargs -0 shasum 2>/dev/null
     } | shasum | cut -d' ' -f1
 }
 
@@ -113,6 +115,8 @@ if run_step "build+typecheck" "${XCB[@]}" build-for-testing; then
 else
     BUILD_OK=0
 fi
+# Read by the Stop hook during the red phase, when only a broken build blocks.
+echo "$([[ $BUILD_OK -eq 1 ]] && echo PASS || echo FAIL)" > "$STATE_DIR/last-build-status"
 
 # 2. Lint. No linter is configured in this repo yet (SwiftLint is not installed).
 if command -v swiftlint >/dev/null 2>&1 && [[ -f "$ROOT/.swiftlint.yml" ]]; then
@@ -124,12 +128,15 @@ fi
 
 count_tests() {
     # Prints "<passed> passed, <failed> failed" for the section of the log after marker $1.
+    # Counts each parameterized case. Matches the "' passed on '" fragment
+    # anywhere in a line, because xcodebuild's own log lines can interleave
+    # with (and split) a "Test case '...'" line.
     local marker="$1"
     local section
-    section="$(awk -v m="$marker" 'index($0, m) {found=1} found' "$LOG")"
+    section="$(awk -v m="$marker" 'index($0, m) {found=1} found' "$LOG" | grep -v "^Test suite '")"
     local passed failed
-    passed="$(grep -c "^Test case '.*' passed" <<<"$section")"
-    failed="$(grep -c "^Test case '.*' failed" <<<"$section")"
+    passed="$(grep -c "' passed on '" <<<"$section")"
+    failed="$(grep -c "' failed on '" <<<"$section")"
     echo "$passed passed, $failed failed"
 }
 
@@ -168,6 +175,8 @@ RESULT="PASS"
 
 if [[ $FAILED -eq 0 ]]; then
     echo "$FP" > "$STATE_DIR/last-pass-fingerprint"
+    # A green suite ends /build's red phase (tests written, implementation pending).
+    rm -f "$STATE_DIR/red-phase"
     exit 0
 fi
 rm -f "$STATE_DIR/last-pass-fingerprint"
