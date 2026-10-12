@@ -31,7 +31,9 @@ Read `.claude/test-lock`. If the feature's test file is **not** yet locked:
    stubs in app code (signatures returning placeholder values) so the suite
    compiles and fails on assertions, not on compile errors.
 3. Write the feature slug to `.claude/.verify-state/red-phase`. This tells the
-   Stop hook that a red suite is expected right now.
+   Stop hook that failing tests are expected, so only a broken *build* blocks
+   a stop. The red phase lasts until `scripts/verify.sh` passes, which ends it
+   automatically; locking the tests does not end it.
 4. Run `scripts/verify.sh` and show the human the failing test names from
    the summary/log. Every new test should fail; a test that already passes is
    suspicious. Say so.
@@ -39,6 +41,9 @@ Read `.claude/test-lock`. If the feature's test file is **not** yet locked:
    `! scripts/lock-tests.sh "CaPowHr Watch AppTests/<FeatureName>Tests.swift"`
    (they can also run it in a terminal). Tick the test task in the spec only
    after they lock. Do not continue until the file is in `.claude/test-lock`.
+   **Do not commit yet:** the pre-commit hook rejects a red suite. The tests,
+   stubs and lock line are committed together with the first task that
+   turns verify green (see step 2.5).
 
 You cannot edit `.claude/test-lock` or run the lock scripts; the hooks will
 block you. Don't try to work around them.
@@ -55,6 +60,10 @@ Take the first unchecked `- [ ]` task in the spec's Plan:
    made, append it to `docs/decisions.md`.
 5. Commit only the files you changed (no `git add -A`), message
    `<feature>: <task>`. The pre-commit hook re-runs verify if needed.
+   While the suite is still red (an earlier task's tests need a later task),
+   don't commit. Tick the box, carry on to the next task, and commit all of
+   them, plus the locked tests and lock line, as one commit once verify is
+   green. Note the grouping in the spec's Deviations.
 
 Then stop and report: the task done, verify result (from the log summary),
 and the next task. If the human said "continue through the plan", repeat

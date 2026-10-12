@@ -3,7 +3,8 @@
 # Claude can no longer edit matching test files. Run after approving the
 # tests /build wrote, e.g.:
 #   scripts/lock-tests.sh "CaPowHr Watch AppTests/PauseReminderTests.swift"
-# Also ends the "red phase" so the Stop hook enforces verify again.
+# The red phase continues until scripts/verify.sh passes (the implementation
+# is done); locking does not end it.
 set -euo pipefail
 
 if [[ $# -eq 0 ]]; then
@@ -27,5 +28,4 @@ for glob in "$@"; do
     [[ "$matches" == "0" ]] && echo "  warning: '$glob' matches no existing file"
 done
 
-rm -f "$ROOT/.claude/.verify-state/red-phase"
-echo "Commit .claude/test-lock so the lock travels with the branch."
+echo "Commit .claude/test-lock with the tests (in /build's first green commit)."
