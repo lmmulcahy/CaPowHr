@@ -82,3 +82,10 @@ DerivedData/
 
 ## OS X
 .DS_Store
+
+## Agent workflow (see docs/WORKFLOW.md)
+.claude/last-verify.log
+.claude/.verify-state/
+.claude/settings.local.json
+# the /build skill, not build output (the build/ rule above matches any dir)
+!.claude/skills/build/

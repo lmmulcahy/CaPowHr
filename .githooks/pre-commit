@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Pre-commit: build (typecheck) + lint + unit tests via scripts/verify.sh, but
+# only when build-relevant files are staged. Skips the run when the exact
+# working tree already passed verify and nothing unstaged differs.
+# Installed by scripts/setup.sh (git config core.hooksPath .githooks).
+set -uo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+PATTERN='\.(swift|pbxproj|plist|xcconfig|entitlements|xcscheme)$'
+
+if ! git diff --cached --name-only --diff-filter=ACMRD | grep -qE "$PATTERN"; then
+    exit 0
+fi
+
+state="$ROOT/.claude/.verify-state"
+if git diff --quiet -- '*.swift' '*.pbxproj' '*.plist' '*.xcconfig' '*.entitlements' '*.xcscheme' \
+   && [[ "$(scripts/verify.sh --fingerprint)" == "$(cat "$state/last-pass-fingerprint" 2>/dev/null)" ]]; then
+    echo "pre-commit: staged source already passed verify (fingerprint match); skipping."
+    exit 0
+fi
+
+echo "pre-commit: running scripts/verify.sh (build + lint + unit tests)..."
+if ! scripts/verify.sh; then
+    echo "" >&2
+    echo "pre-commit: verify FAILED; commit aborted. See .claude/last-verify.log" >&2
+    exit 1
+fi

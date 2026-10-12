@@ -1,0 +1,9 @@
+# Locked test files: one glob per line, relative to the repo root.
+# Claude cannot edit matching files (enforced by .claude/hooks/guard-edits.sh
+# and guard-bash.sh). Only the human changes this list, via
+#   scripts/lock-tests.sh <glob>     scripts/unlock-tests.sh <glob>
+# New feature tests go in their own file: CaPowHr Watch AppTests/<Feature>Tests.swift
+
+# Pre-existing suites (approved before the spec workflow began)
+CaPowHr Watch AppTests/CaPowHr_Watch_AppTests.swift
+CaPowHr Watch AppUITests/*.swift
